@@ -42,7 +42,7 @@ namespace UniBLE
             return new Platforms.Android.AndroidBleAdapter();
 #elif UNITY_IOS && !UNITY_EDITOR
             return new Platforms.iOS.iOSBleAdapter();
-#elif UNITY_STANDALONE_OSX && !UNITY_EDITOR
+#elif UNITY_STANDALONE_OSX || (UNITY_EDITOR_OSX)
             return new Platforms.Mac.MacBleAdapter();
 #elif UNITY_STANDALONE_WIN && !UNITY_EDITOR
             return new Platforms.Windows.WindowsBleAdapter();

@@ -12,7 +12,21 @@ namespace UniBLE
         private static MainThreadDispatcher _instance;
         private static readonly object _lock = new object();
         private static readonly Queue<Action> _actionQueue = new Queue<Action>();
-        private static bool _isInitialized;
+        private static volatile bool _isInitialized;
+
+        /// <summary>
+        /// Initialize the dispatcher automatically when the game starts
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void Initialize()
+        {
+            if (_isInitialized) return;
+
+            var go = new GameObject("UniBLE_MainThreadDispatcher");
+            _instance = go.AddComponent<MainThreadDispatcher>();
+            DontDestroyOnLoad(go);
+            _isInitialized = true;
+        }
 
         /// <summary>
         /// Enqueue an action to be executed on the main thread
@@ -21,26 +35,9 @@ namespace UniBLE
         {
             if (action == null) return;
 
-            EnsureInitialized();
-
             lock (_lock)
             {
                 _actionQueue.Enqueue(action);
-            }
-        }
-
-        private static void EnsureInitialized()
-        {
-            if (_isInitialized) return;
-
-            lock (_lock)
-            {
-                if (_isInitialized) return;
-
-                var go = new GameObject("UniBLE_MainThreadDispatcher");
-                _instance = go.AddComponent<MainThreadDispatcher>();
-                DontDestroyOnLoad(go);
-                _isInitialized = true;
             }
         }
 

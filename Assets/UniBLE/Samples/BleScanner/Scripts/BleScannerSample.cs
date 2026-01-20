@@ -38,7 +38,7 @@ namespace UniBLE.Samples
                 var isAvailable = await _adapter.IsAvailableAsync();
                 if (!isAvailable)
                 {
-                    UpdateStatus("BLE is not available on this device");
+                    UpdateStatus($"BLE is not available (State: {_adapter.State})");
                     scanButton.interactable = false;
                     return;
                 }
