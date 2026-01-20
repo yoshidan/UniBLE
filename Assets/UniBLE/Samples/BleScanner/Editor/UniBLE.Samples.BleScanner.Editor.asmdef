@@ -1,0 +1,19 @@
+{
+    "name": "UniBLE.Samples.BleScanner.Editor",
+    "rootNamespace": "UniBLE.Samples.Editor",
+    "references": [
+        "UniBLE.Runtime",
+        "UniBLE.Samples.BleScanner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

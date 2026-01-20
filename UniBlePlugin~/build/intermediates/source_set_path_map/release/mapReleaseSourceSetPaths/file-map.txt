@@ -1,0 +1,10 @@
+com.unible-annotation-experimental-1.3.0-0 /Users/01005901/.gradle/caches/9.3.0/transforms/055282a1e9a619b47a3b66229dd8770b/transformed/annotation-experimental-1.3.0/res
+com.unible-core-1.12.0-1 /Users/01005901/.gradle/caches/9.3.0/transforms/36eb581f9cb240d4dc18145fa7ed4ecf/transformed/core-1.12.0/res
+com.unible-lifecycle-runtime-2.3.1-2 /Users/01005901/.gradle/caches/9.3.0/transforms/539436e79134943b1eb8b9340faf7e5d/transformed/lifecycle-runtime-2.3.1/res
+com.unible-pngs-3 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/build/generated/res/pngs/release
+com.unible-resValues-4 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/build/generated/res/resValues/release
+com.unible-mergeReleaseResources-5 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
+com.unible-mergeReleaseResources-6 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
+com.unible-release-7 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/build/intermediates/merged_res/release/mergeReleaseResources
+com.unible-main-8 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/src/main/res
+com.unible-release-9 /Users/01005901/go/src/github.com/yoshidan/UniBLE/UniBlePlugin~/src/release/res

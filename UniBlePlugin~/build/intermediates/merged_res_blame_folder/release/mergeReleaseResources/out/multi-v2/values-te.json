@@ -1,0 +1,34 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.unible-release-6:/values-te/values-te.xml",
+            "map": [
+                {
+                    "source": "/Users/01005901/.gradle/caches/9.3.0/transforms/36eb581f9cb240d4dc18145fa7ed4ecf/transformed/core-1.12.0/res/values-te/values-te.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,157,265,367,468,574,681,805",
+                        "endColumns": "101,107,101,100,105,106,123,100",
+                        "endOffsets": "152,260,362,463,569,676,800,901"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "com.unible-mergeReleaseResources-4:/values-te/values-te.xml",
+            "map": [
+                {
+                    "source": "/Users/01005901/.gradle/caches/9.3.0/transforms/36eb581f9cb240d4dc18145fa7ed4ecf/transformed/core-1.12.0/res/values-te/values-te.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,157,265,367,468,574,681,805",
+                        "endColumns": "101,107,101,100,105,106,123,100",
+                        "endOffsets": "152,260,362,463,569,676,800,901"
+                    }
+                }
+            ]
+        }
+    ]
+}
