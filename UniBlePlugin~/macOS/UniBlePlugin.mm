@@ -33,22 +33,27 @@ static const int PROP_INDICATE = 32;
 
 @end
 
-@implementation UniBleManager
+// Global reference to prevent deallocation
+static UniBleManager* g_sharedInstance = nil;
+
+@implementation UniBleManager {
+    dispatch_queue_t _syncQueue;
+}
 
 + (instancetype)shared {
-    static UniBleManager* instance = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        instance = [[UniBleManager alloc] init];
+        g_sharedInstance = [[UniBleManager alloc] init];
     });
-    return instance;
+    return g_sharedInstance;
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _peripherals = [NSMutableDictionary dictionary];
-        _peripheralCallbacks = [NSMutableDictionary dictionary];
+        _peripherals = [[NSMutableDictionary alloc] init];
+        _peripheralCallbacks = [[NSMutableDictionary alloc] init];
+        _syncQueue = dispatch_queue_create("com.unible.sync", DISPATCH_QUEUE_SERIAL);
     }
     return self;
 }
@@ -270,6 +275,7 @@ static const int PROP_INDICATE = 32;
 #pragma mark - CBCentralManagerDelegate
 
 - (void)centralManagerDidUpdateState:(CBCentralManager*)central {
+    NSLog(@"[UniBLE Native] centralManagerDidUpdateState: %ld", (long)central.state);
     int state = 0;
     switch (central.state) {
         case CBManagerStateUnknown: state = 0; break;
@@ -280,23 +286,45 @@ static const int PROP_INDICATE = 32;
         default: state = 0; break;
     }
 
+    NSLog(@"[UniBLE Native] Calling state callback with state: %d", state);
     if (self.stateChangedCallback) {
+        // Call directly - delegate methods are already on main queue (we passed nil for queue in init)
+        // C# side handles thread safety with MainThreadDispatcher
         self.stateChangedCallback(state);
     }
+    NSLog(@"[UniBLE Native] State callback done");
 }
 
 - (void)centralManager:(CBCentralManager*)central didDiscoverPeripheral:(CBPeripheral*)peripheral advertisementData:(NSDictionary<NSString*, id>*)advertisementData RSSI:(NSNumber*)RSSI {
-    NSString* deviceId = peripheral.identifier.UUIDString;
-
-    if (!self.peripherals[deviceId]) {
-        self.peripherals[deviceId] = peripheral;
-        peripheral.delegate = self;
-
-        if (self.deviceDiscoveredCallback) {
-            NSString* name = peripheral.name ?: @"Unknown";
-            self.deviceDiscoveredCallback([deviceId UTF8String], [name UTF8String]);
-        }
+    if (!peripheral) {
+        return;
     }
+
+    NSString* deviceId = peripheral.identifier.UUIDString;
+    if (!deviceId) {
+        return;
+    }
+
+    // Use sync queue to prevent race conditions
+    dispatch_sync(_syncQueue, ^{
+        if (!self.peripherals[deviceId]) {
+            self.peripherals[deviceId] = peripheral;
+            peripheral.delegate = self;
+
+            if (self.deviceDiscoveredCallback) {
+                DeviceDiscoveredCallback callback = self.deviceDiscoveredCallback;
+                NSString* name = peripheral.name ?: @"Unknown";
+                // Copy strings to ensure they remain valid
+                const char* deviceIdCStr = strdup([deviceId UTF8String]);
+                const char* nameCStr = strdup([name UTF8String]);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    callback(deviceIdCStr, nameCStr);
+                    free((void*)deviceIdCStr);
+                    free((void*)nameCStr);
+                });
+            }
+        }
+    });
 }
 
 - (void)centralManager:(CBCentralManager*)central didConnectPeripheral:(CBPeripheral*)peripheral {

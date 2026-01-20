@@ -115,18 +115,36 @@ namespace UniBLE.Samples
 
         private void OnDeviceDiscovered(IBleDevice device)
         {
-            // This is called from the main thread via MainThreadDispatcher
-            if (_deviceItems.ContainsKey(device.Id))
+            try
             {
-                return;
+                // This is called from the main thread via MainThreadDispatcher
+                if (_deviceItems.ContainsKey(device.Id))
+                {
+                    return;
+                }
+
+                // Log discovered device
+                Debug.Log($"[BleScanner] Discovered: {device.Name} ({device.Id})");
+
+                if (deviceItemPrefab == null || deviceListContent == null)
+                {
+                    // No UI setup, just track the device count
+                    _deviceItems[device.Id] = null;
+                    UpdateStatus($"Scanning... Found {_deviceItems.Count} devices");
+                    return;
+                }
+
+                var itemGo = Instantiate(deviceItemPrefab, deviceListContent);
+                var item = itemGo.GetComponent<DeviceListItem>();
+                item.Setup(device, OnDeviceSelected);
+                _deviceItems[device.Id] = item;
+
+                UpdateStatus($"Scanning... Found {_deviceItems.Count} devices");
             }
-
-            var itemGo = Instantiate(deviceItemPrefab, deviceListContent);
-            var item = itemGo.GetComponent<DeviceListItem>();
-            item.Setup(device, OnDeviceSelected);
-            _deviceItems[device.Id] = item;
-
-            UpdateStatus($"Scanning... Found {_deviceItems.Count} devices");
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[BleScanner] OnDeviceDiscovered exception: {e}");
+            }
         }
 
         private void OnDeviceSelected(IBleDevice device)
