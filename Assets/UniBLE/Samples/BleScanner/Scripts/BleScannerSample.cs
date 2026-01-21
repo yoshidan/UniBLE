@@ -76,7 +76,7 @@ namespace UniBLE.Samples
             {
                 UpdateStatus("Scanning...");
                 var devices = new List<String>();
-                devices.Add("180F".ToUpper());
+                devices.Add("e2b23000-cd58-6f80-f2b0-b9bd830480be".ToUpper());
                 await _adapter.StartScanAsync(
                     serviceUuids: devices, // Scan for all devices
                     onDeviceDiscovered: OnDeviceDiscovered,
