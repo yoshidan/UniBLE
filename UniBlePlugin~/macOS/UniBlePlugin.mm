@@ -16,6 +16,7 @@ static const int PROP_INDICATE = 32;
 @property (nonatomic, strong) NSMutableDictionary<NSString*, NSMutableDictionary*>* peripheralCallbacks;
 @property (nonatomic, assign) StateChangedCallback stateChangedCallback;
 @property (nonatomic, assign) DeviceDiscoveredCallback deviceDiscoveredCallback;
+@property (nonatomic, strong) NSArray<CBUUID*>* filterServiceUuids;
 
 + (instancetype)shared;
 - (void)initializeWithStateCallback:(StateChangedCallback)stateCallback deviceCallback:(DeviceDiscoveredCallback)deviceCallback;
@@ -72,11 +73,33 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)startScanWithServiceUuids:(NSArray<CBUUID*>*)serviceUuids {
+    NSLog(@"[UniBLE Native] startScanWithServiceUuids called, state: %ld", (long)self.centralManager.state);
     if (self.centralManager.state != CBManagerStatePoweredOn) {
+        NSLog(@"[UniBLE Native] Cannot start scan - Bluetooth not powered on");
         return;
     }
 
-    [self.centralManager scanForPeripheralsWithServices:serviceUuids options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @NO}];
+    // Stop any existing scan first
+    [self.centralManager stopScan];
+
+    // Clear previously discovered peripherals so they can be discovered again
+    [self.peripherals removeAllObjects];
+
+    // Store filter UUIDs for manual filtering (workaround for 128-bit UUID filter issue)
+    self.filterServiceUuids = serviceUuids;
+
+    if (serviceUuids) {
+        NSLog(@"[UniBLE Native] Will filter for %lu services (manual filtering):", (unsigned long)serviceUuids.count);
+        for (CBUUID* uuid in serviceUuids) {
+            NSLog(@"[UniBLE Native]   - %@", uuid.UUIDString);
+        }
+    } else {
+        NSLog(@"[UniBLE Native] Starting scan for all devices");
+    }
+
+    // Always scan for all devices, filter manually in didDiscoverPeripheral
+    [self.centralManager scanForPeripheralsWithServices:nil options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @NO}];
+    NSLog(@"[UniBLE Native] scanForPeripheralsWithServices called, isScanning: %d", self.centralManager.isScanning);
 }
 
 - (void)stopScan {
@@ -305,6 +328,39 @@ static UniBleManager* g_sharedInstance = nil;
         return;
     }
 
+    // Build service UUIDs JSON from advertisement data
+    NSArray* serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey];
+    NSString* serviceUuidsJson = nil;
+    if (serviceUUIDs && serviceUUIDs.count > 0) {
+        NSMutableArray* uuidStrings = [NSMutableArray array];
+        for (CBUUID* uuid in serviceUUIDs) {
+            [uuidStrings addObject:[NSString stringWithFormat:@"\"%@\"", uuid.UUIDString]];
+        }
+        serviceUuidsJson = [NSString stringWithFormat:@"[%@]", [uuidStrings componentsJoinedByString:@","]];
+    }
+
+    // Manual filtering for service UUIDs (workaround for CoreBluetooth 128-bit UUID filter issue)
+    if (self.filterServiceUuids && self.filterServiceUuids.count > 0) {
+        if (!serviceUUIDs || serviceUUIDs.count == 0) {
+            return; // Device doesn't advertise any services, skip
+        }
+
+        BOOL matchFound = NO;
+        for (CBUUID* filterUuid in self.filterServiceUuids) {
+            for (CBUUID* advertisedUuid in serviceUUIDs) {
+                if ([filterUuid isEqual:advertisedUuid]) {
+                    matchFound = YES;
+                    break;
+                }
+            }
+            if (matchFound) break;
+        }
+
+        if (!matchFound) {
+            return; // Device doesn't advertise any of the filtered services, skip
+        }
+    }
+
     // Use sync queue to prevent race conditions
     dispatch_sync(_syncQueue, ^{
         if (!self.peripherals[deviceId]) {
@@ -317,10 +373,12 @@ static UniBleManager* g_sharedInstance = nil;
                 // Copy strings to ensure they remain valid
                 const char* deviceIdCStr = strdup([deviceId UTF8String]);
                 const char* nameCStr = strdup([name UTF8String]);
+                const char* serviceUuidsCStr = serviceUuidsJson ? strdup([serviceUuidsJson UTF8String]) : NULL;
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    callback(deviceIdCStr, nameCStr);
+                    callback(deviceIdCStr, nameCStr, serviceUuidsCStr);
                     free((void*)deviceIdCStr);
                     free((void*)nameCStr);
+                    if (serviceUuidsCStr) free((void*)serviceUuidsCStr);
                 });
             }
         }
@@ -517,30 +575,49 @@ bool UniBle_IsAvailable(void) {
 }
 
 void UniBle_StartScan(const char* serviceUuidsJson) {
+    NSLog(@"[UniBLE Native] UniBle_StartScan called with: %s", serviceUuidsJson ? serviceUuidsJson : "null");
     NSArray<CBUUID*>* uuids = nil;
 
     if (serviceUuidsJson) {
-        NSString* json = [NSString stringWithUTF8String:serviceUuidsJson];
-        // Parse simple JSON array: ["uuid1", "uuid2"]
-        json = [json stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        if ([json hasPrefix:@"["] && [json hasSuffix:@"]"]) {
-            json = [json substringWithRange:NSMakeRange(1, json.length - 2)];
-            NSArray* parts = [json componentsSeparatedByString:@","];
-            NSMutableArray<CBUUID*>* mutableUuids = [NSMutableArray array];
-            for (NSString* part in parts) {
-                NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                trimmed = [trimmed stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
-                if (trimmed.length > 0) {
-                    [mutableUuids addObject:[CBUUID UUIDWithString:trimmed]];
+        @try {
+            NSString* json = [NSString stringWithUTF8String:serviceUuidsJson];
+            NSLog(@"[UniBLE Native] Parsing JSON: %@", json);
+            // Parse simple JSON array: ["uuid1", "uuid2"]
+            json = [json stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if ([json hasPrefix:@"["] && [json hasSuffix:@"]"]) {
+                json = [json substringWithRange:NSMakeRange(1, json.length - 2)];
+                NSArray* parts = [json componentsSeparatedByString:@","];
+                NSMutableArray<CBUUID*>* mutableUuids = [NSMutableArray array];
+                for (NSString* part in parts) {
+                    NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    trimmed = [trimmed stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
+                    NSLog(@"[UniBLE Native] Parsing UUID: '%@'", trimmed);
+                    if (trimmed.length > 0) {
+                        @try {
+                            CBUUID* uuid = [CBUUID UUIDWithString:trimmed];
+                            if (uuid) {
+                                [mutableUuids addObject:uuid];
+                                NSLog(@"[UniBLE Native] Added UUID: %@", uuid);
+                            } else {
+                                NSLog(@"[UniBLE Native] Failed to create CBUUID from: %@", trimmed);
+                            }
+                        } @catch (NSException* e) {
+                            NSLog(@"[UniBLE Native] Exception creating CBUUID: %@", e);
+                        }
+                    }
+                }
+                if (mutableUuids.count > 0) {
+                    uuids = mutableUuids;
                 }
             }
-            if (mutableUuids.count > 0) {
-                uuids = mutableUuids;
-            }
+        } @catch (NSException* e) {
+            NSLog(@"[UniBLE Native] Exception parsing service UUIDs: %@", e);
         }
     }
 
+    NSLog(@"[UniBLE Native] Starting scan with %lu service UUIDs", (unsigned long)(uuids ? uuids.count : 0));
     [[UniBleManager shared] startScanWithServiceUuids:uuids];
+    NSLog(@"[UniBLE Native] Scan started");
 }
 
 void UniBle_StopScan(void) {

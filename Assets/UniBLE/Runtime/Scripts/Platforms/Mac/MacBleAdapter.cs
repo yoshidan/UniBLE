@@ -39,7 +39,7 @@ namespace UniBLE.Platforms.Mac
 
         #region Callbacks
         private delegate void StateChangedCallback(int state);
-        private delegate void DeviceDiscoveredCallback(IntPtr deviceId, IntPtr deviceName);
+        private delegate void DeviceDiscoveredCallback(IntPtr deviceId, IntPtr deviceName, IntPtr serviceUuidsJson);
 
         private static StateChangedCallback _stateChangedCallback;
         private static DeviceDiscoveredCallback _deviceDiscoveredCallback;
@@ -97,10 +97,13 @@ namespace UniBLE.Platforms.Mac
             if (serviceUuids != null)
             {
                 var list = new List<string>(serviceUuids);
-                uuidsJson = "[" + string.Join(",", list.ConvertAll(u => $"\"{u}\"")) + "]";
+                if (list.Count > 0)
+                {
+                    uuidsJson = "[" + string.Join(",", list.ConvertAll(u => $"\"{u}\"")) + "]";
+                }
             }
 
-            UnityEngine.Debug.Log("[UniBLE] Before UniBle_StartScan");
+            UnityEngine.Debug.Log($"[UniBLE] Before UniBle_StartScan, uuidsJson: {uuidsJson ?? "null"}");
             try
             {
                 UniBle_StartScan(uuidsJson);
@@ -175,34 +178,25 @@ namespace UniBLE.Platforms.Mac
         }
 
         [MonoPInvokeCallback(typeof(DeviceDiscoveredCallback))]
-        private static void OnNativeDeviceDiscovered(IntPtr deviceIdPtr, IntPtr deviceNamePtr)
+        private static void OnNativeDeviceDiscovered(IntPtr deviceIdPtr, IntPtr deviceNamePtr, IntPtr serviceUuidsJsonPtr)
         {
-            UnityEngine.Debug.Log("[UniBLE] OnNativeDeviceDiscovered called");
             try
             {
                 var deviceId = PtrToString(deviceIdPtr);
                 var deviceName = PtrToString(deviceNamePtr);
-                UnityEngine.Debug.Log($"[UniBLE] Device: {deviceId}, {deviceName}");
+                var serviceUuidsJson = PtrToString(serviceUuidsJsonPtr);
+                UnityEngine.Debug.Log($"[UniBLE] Discovered: {deviceName} ({deviceId})");
+                UnityEngine.Debug.Log($"[UniBLE] Advertised Services: {serviceUuidsJson ?? "none"}");
 
                 MainThreadDispatcher.Enqueue(() =>
                 {
-                    UnityEngine.Debug.Log("[UniBLE] MainThreadDispatcher callback");
-                    if (_instance == null)
-                    {
-                        UnityEngine.Debug.Log("[UniBLE] _instance is null");
-                        return;
-                    }
+                    if (_instance == null) return;
 
-                    UnityEngine.Debug.Log($"[UniBLE] Checking device: {deviceId}");
                     if (!_instance._discoveredDevices.ContainsKey(deviceId))
                     {
-                        UnityEngine.Debug.Log("[UniBLE] Creating MacBleDevice...");
                         var device = new MacBleDevice(deviceId, deviceName);
-                        UnityEngine.Debug.Log("[UniBLE] MacBleDevice created");
                         _instance._discoveredDevices[deviceId] = device;
-                        UnityEngine.Debug.Log("[UniBLE] Invoking callback...");
                         _instance._onDeviceDiscovered?.Invoke(device);
-                        UnityEngine.Debug.Log("[UniBLE] Callback invoked");
                     }
                 });
             }

@@ -6,7 +6,7 @@
 
 // Callback types
 typedef void (*StateChangedCallback)(int state);
-typedef void (*DeviceDiscoveredCallback)(const char* deviceId, const char* deviceName);
+typedef void (*DeviceDiscoveredCallback)(const char* deviceId, const char* deviceName, const char* serviceUuidsJson);
 typedef void (*ConnectionCallback)(const char* deviceId, bool success, const char* error);
 typedef void (*ServiceDiscoveryCallback)(const char* deviceId, const char* servicesJson, const char* error);
 typedef void (*CharacteristicDiscoveryCallback)(const char* deviceId, const char* serviceUuid, const char* characteristicsJson, const char* error);
