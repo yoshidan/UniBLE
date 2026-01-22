@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
+using ScrollRect = UnityEngine.UI.ScrollRect;
 
 namespace UniBLE.Samples
 {
@@ -22,6 +24,8 @@ namespace UniBLE.Samples
         private readonly Dictionary<string, DeviceListItem> _deviceItems = new Dictionary<string, DeviceListItem>();
         private CancellationTokenSource _scanCts;
         private bool _isScanning;
+        private IBleDevice _connectedDevice;
+        private readonly List<GameObject> _characteristicButtons = new List<GameObject>();
 
         private async void Start()
         {
@@ -29,6 +33,16 @@ namespace UniBLE.Samples
             stopButton.onClick.AddListener(OnStopButtonClicked);
 
             stopButton.interactable = false;
+
+            // Increase scroll speed
+            if (deviceListContent != null)
+            {
+                var scrollRect = deviceListContent.GetComponentInParent<ScrollRect>();
+                if (scrollRect != null)
+                {
+                    scrollRect.scrollSensitivity = 50f;
+                }
+            }
 
             try
             {
@@ -153,18 +167,18 @@ namespace UniBLE.Samples
 
                     // Add layout element for sizing
                     var layoutElement = buttonGo.AddComponent<LayoutElement>();
-                    layoutElement.minHeight = 40;
-                    layoutElement.preferredHeight = 40;
+                    layoutElement.minHeight = 80;
+                    layoutElement.preferredHeight = 80;
 
                     // Create child text object
                     var textGo = new GameObject("Text");
                     textGo.transform.SetParent(buttonGo.transform, false);
                     var text = textGo.AddComponent<Text>();
                     text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                    text.fontSize = 14;
+                    text.fontSize = 30;
                     text.color = Color.black;
                     text.alignment = TextAnchor.MiddleLeft;
-                    text.text = $"  {device.Name ?? "Unknown"}\n  {device.Id.Substring(0, 8)}...";
+                    text.text = $"  {device.Name ?? "Unknown"}\n  {device.Id}";
 
                     // Stretch text to fill button
                     var textRect = textGo.GetComponent<RectTransform>();
@@ -217,8 +231,12 @@ namespace UniBLE.Samples
             {
                 UpdateStatus($"Connecting to {device.Name}...");
                 await device.ConnectAsync();
+                _connectedDevice = device;
                 UpdateStatus($"Connected to {device.Name}!");
                 Debug.Log($"[BleScanner] Connected to {device.Name} ({device.Id})");
+
+                // Clear previous characteristic buttons
+                ClearCharacteristicButtons();
 
                 // Discover services after connection
                 UpdateStatus($"Discovering services...");
@@ -236,6 +254,7 @@ namespace UniBLE.Samples
                     foreach (var characteristic in characteristics)
                     {
                         Debug.Log($"[BleScanner]     Characteristic: {characteristic.Uuid} (Properties: {characteristic.Properties})");
+                        CreateCharacteristicUI(service, characteristic);
                     }
                 }
                 UpdateStatus($"Connected. {services.Count} services, {totalCharacteristics} characteristics.");
@@ -285,6 +304,165 @@ namespace UniBLE.Samples
         {
             _scanCts?.Cancel();
             _scanCts?.Dispose();
+        }
+
+        private void ClearCharacteristicButtons()
+        {
+            foreach (var go in _characteristicButtons)
+            {
+                Destroy(go);
+            }
+            _characteristicButtons.Clear();
+        }
+
+        private void CreateCharacteristicUI(IBleService service, IBleCharacteristic characteristic)
+        {
+            if (deviceListContent == null) return;
+
+            var props = characteristic.Properties;
+            bool hasRead = props.HasFlag(BleCharacteristicProperties.Read);
+            bool hasWrite = props.HasFlag(BleCharacteristicProperties.Write) ||
+                           props.HasFlag(BleCharacteristicProperties.WriteWithoutResponse);
+            bool hasNotify = props.HasFlag(BleCharacteristicProperties.Notify) ||
+                            props.HasFlag(BleCharacteristicProperties.Indicate);
+
+            // Create container
+            var containerGo = new GameObject($"Char_{characteristic.Uuid}");
+            containerGo.transform.SetParent(deviceListContent, false);
+            _characteristicButtons.Add(containerGo);
+
+            var containerLayout = containerGo.AddComponent<HorizontalLayoutGroup>();
+            containerLayout.spacing = 5;
+            containerLayout.childForceExpandWidth = false;
+            containerLayout.childForceExpandHeight = true;
+            containerLayout.padding = new RectOffset(5, 5, 2, 2);
+
+            var containerLayoutElement = containerGo.AddComponent<LayoutElement>();
+            containerLayoutElement.minHeight = 60;
+
+            var containerImage = containerGo.AddComponent<Image>();
+            containerImage.color = new Color(0.95f, 0.95f, 0.95f, 1f);
+
+            // Label
+            var labelGo = new GameObject("Label");
+            labelGo.transform.SetParent(containerGo.transform, false);
+            var labelText = labelGo.AddComponent<Text>();
+            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            labelText.fontSize = 30;
+            labelText.color = Color.black;
+            labelText.text = characteristic.Uuid;
+            var labelLayout = labelGo.AddComponent<LayoutElement>();
+            labelLayout.minWidth = 450;
+            labelLayout.preferredWidth = 450;
+
+            // Read button
+            if (hasRead)
+            {
+                CreateActionButton(containerGo.transform, "Read", new Color(0.6f, 0.8f, 0.6f),
+                    () => OnReadClicked(characteristic));
+            }
+
+            // Write button
+            if (hasWrite)
+            {
+                CreateActionButton(containerGo.transform, "Write", new Color(0.8f, 0.8f, 0.6f),
+                    () => OnWriteClicked(characteristic));
+            }
+
+            // Notify button
+            if (hasNotify)
+            {
+                CreateActionButton(containerGo.transform, "Notify", new Color(0.6f, 0.7f, 0.9f),
+                    () => OnNotifyClicked(characteristic));
+            }
+        }
+
+        private void CreateActionButton(Transform parent, string label, Color color, Action onClick)
+        {
+            var buttonGo = new GameObject(label);
+            buttonGo.transform.SetParent(parent, false);
+
+            var image = buttonGo.AddComponent<Image>();
+            image.color = color;
+
+            var button = buttonGo.AddComponent<Button>();
+            button.onClick.AddListener(() => onClick());
+
+            var layoutElement = buttonGo.AddComponent<LayoutElement>();
+            layoutElement.minWidth = 100;
+            layoutElement.preferredWidth = 100;
+
+            var textGo = new GameObject("Text");
+            textGo.transform.SetParent(buttonGo.transform, false);
+            var text = textGo.AddComponent<Text>();
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 30;
+            text.color = Color.black;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.text = label;
+
+            var textRect = textGo.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+        }
+
+        private async void OnReadClicked(IBleCharacteristic characteristic)
+        {
+            try
+            {
+                UpdateStatus($"Reading {characteristic.Uuid}...");
+                var data = await characteristic.ReadAsync();
+                var hex = BitConverter.ToString(data).Replace("-", " ");
+                var text = Encoding.UTF8.GetString(data);
+                Debug.Log($"[BleScanner] Read {characteristic.Uuid}: [{hex}] \"{text}\"");
+                UpdateStatus($"Read: {hex}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[BleScanner] Read error: {e.Message}");
+                UpdateStatus($"Read failed: {e.Message}");
+            }
+        }
+
+        private async void OnWriteClicked(IBleCharacteristic characteristic)
+        {
+            try
+            {
+                // Sample write data - you can modify this
+                var data = Encoding.UTF8.GetBytes("Hello");
+                UpdateStatus($"Writing to {characteristic.Uuid}...");
+                await characteristic.WriteAsync(data);
+                Debug.Log($"[BleScanner] Write to {characteristic.Uuid} succeeded");
+                UpdateStatus($"Write succeeded");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[BleScanner] Write error: {e.Message}");
+                UpdateStatus($"Write failed: {e.Message}");
+            }
+        }
+
+        private async void OnNotifyClicked(IBleCharacteristic characteristic)
+        {
+            try
+            {
+                UpdateStatus($"Subscribing to {characteristic.Uuid}...");
+                await characteristic.SubscribeAsync(data =>
+                {
+                    var hex = BitConverter.ToString(data).Replace("-", " ");
+                    Debug.Log($"[BleScanner] Notify from {characteristic.Uuid}: [{hex}]");
+                    UpdateStatus($"Notify: {hex}");
+                });
+                Debug.Log($"[BleScanner] Subscribed to {characteristic.Uuid}");
+                UpdateStatus($"Subscribed to notifications");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[BleScanner] Subscribe error: {e.Message}");
+                UpdateStatus($"Subscribe failed: {e.Message}");
+            }
         }
     }
 }
