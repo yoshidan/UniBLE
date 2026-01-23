@@ -101,6 +101,8 @@ static UniBleManager* g_sharedInstance = nil;
     NSMutableDictionary* callbacks = [self callbacksForPeripheral:deviceId];
     callbacks[@"connectionCallback"] = [NSValue valueWithPointer:(void*)callback];
 
+    // Set delegate before connecting (important for receiving peripheral callbacks)
+    peripheral.delegate = self;
     [self.centralManager connectPeripheral:peripheral options:nil];
 }
 
@@ -198,22 +200,37 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)subscribeToCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid notifyCallback:(NotifyCallback)notifyCallback resultCallback:(SubscribeCallback)resultCallback {
+    NSLog(@"[UniBLE Native] subscribeToCharacteristicForPeripheral called");
+    NSLog(@"[UniBLE Native]   deviceId: %@", deviceId);
+    NSLog(@"[UniBLE Native]   serviceUuid: %@", serviceUuid);
+    NSLog(@"[UniBLE Native]   characteristicUuid: %@", characteristicUuid);
+
     CBCharacteristic* characteristic = [self findCharacteristicForPeripheral:deviceId serviceUuid:serviceUuid characteristicUuid:characteristicUuid];
     if (!characteristic) {
+        NSLog(@"[UniBLE Native] Characteristic not found!");
         if (resultCallback) {
             resultCallback([deviceId UTF8String], [characteristicUuid UTF8String], "Characteristic not found");
         }
         return;
     }
 
+    NSLog(@"[UniBLE Native] Found characteristic: %@, properties: %lu", characteristic.UUID, (unsigned long)characteristic.properties);
+
+    // Use the actual characteristic UUID from CoreBluetooth (uppercased) for consistent key
+    NSString* actualUuid = [characteristic.UUID.UUIDString uppercaseString];
+    NSLog(@"[UniBLE Native] Subscribing to characteristic: %@ (input was: %@)", actualUuid, characteristicUuid);
+
     NSMutableDictionary* callbacks = [self callbacksForPeripheral:deviceId];
-    NSString* notifyKey = [NSString stringWithFormat:@"notifyCallback_%@", characteristicUuid];
-    NSString* subscribeKey = [NSString stringWithFormat:@"subscribeCallback_%@", characteristicUuid];
+    NSString* notifyKey = [NSString stringWithFormat:@"notifyCallback_%@", actualUuid];
+    NSString* subscribeKey = [NSString stringWithFormat:@"subscribeCallback_%@", actualUuid];
+    NSLog(@"[UniBLE Native] Storing notify callback with key: %@", notifyKey);
     callbacks[notifyKey] = [NSValue valueWithPointer:(void*)notifyCallback];
     callbacks[subscribeKey] = [NSValue valueWithPointer:(void*)resultCallback];
 
     CBPeripheral* peripheral = self.peripherals[deviceId];
+    NSLog(@"[UniBLE Native] Peripheral state: %ld, delegate: %@", (long)peripheral.state, peripheral.delegate);
     [peripheral setNotifyValue:YES forCharacteristic:characteristic];
+    NSLog(@"[UniBLE Native] setNotifyValue:YES called");
 }
 
 - (void)unsubscribeFromCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid callback:(SubscribeCallback)callback {
@@ -348,6 +365,11 @@ static UniBleManager* g_sharedInstance = nil;
 
 - (void)centralManager:(CBCentralManager*)central didConnectPeripheral:(CBPeripheral*)peripheral {
     NSString* deviceId = peripheral.identifier.UUIDString;
+    NSLog(@"[UniBLE Native] didConnectPeripheral: %@", deviceId);
+
+    // Ensure delegate is set after connection (important for receiving peripheral callbacks like didUpdateValueForCharacteristic)
+    peripheral.delegate = self;
+
     NSMutableDictionary* callbacks = self.peripheralCallbacks[deviceId];
 
     NSValue* callbackValue = callbacks[@"connectionCallback"];
@@ -376,7 +398,7 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)centralManager:(CBCentralManager*)central didDisconnectPeripheral:(CBPeripheral*)peripheral error:(NSError*)error {
-    // Peripheral disconnected - could notify C# side if needed
+    NSLog(@"[UniBLE Native] didDisconnectPeripheral: %@, error: %@", peripheral.identifier.UUIDString, error);
 }
 
 #pragma mark - CBPeripheralDelegate
@@ -432,9 +454,17 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)peripheral:(CBPeripheral*)peripheral didUpdateValueForCharacteristic:(CBCharacteristic*)characteristic error:(NSError*)error {
+    NSLog(@"[UniBLE Native] *** didUpdateValueForCharacteristic CALLED ***");
+    NSLog(@"[UniBLE Native]   peripheral: %@", peripheral.identifier.UUIDString);
+    NSLog(@"[UniBLE Native]   characteristic: %@", characteristic.UUID.UUIDString);
+    NSLog(@"[UniBLE Native]   value length: %lu", (unsigned long)characteristic.value.length);
+    NSLog(@"[UniBLE Native]   error: %@", error);
+
     NSString* deviceId = peripheral.identifier.UUIDString;
-    NSString* characteristicUuid = characteristic.UUID.UUIDString;
+    NSString* characteristicUuid = [characteristic.UUID.UUIDString uppercaseString];
     NSMutableDictionary* callbacks = self.peripheralCallbacks[deviceId];
+
+    NSLog(@"[UniBLE Native] didUpdateValueForCharacteristic: %@, error: %@", characteristicUuid, error);
 
     // Check if this is a read callback or notify callback
     NSString* readKey = [NSString stringWithFormat:@"readCallback_%@", characteristicUuid];
@@ -454,11 +484,14 @@ static UniBleManager* g_sharedInstance = nil;
     } else {
         // This is a notification
         NSString* notifyKey = [NSString stringWithFormat:@"notifyCallback_%@", characteristicUuid];
+        NSLog(@"[UniBLE Native] Looking for notify callback with key: %@", notifyKey);
         NSValue* notifyCallbackValue = callbacks[notifyKey];
+        NSLog(@"[UniBLE Native] Notify callback found: %@", notifyCallbackValue ? @"YES" : @"NO");
         if (notifyCallbackValue) {
             NotifyCallback callback = (NotifyCallback)[notifyCallbackValue pointerValue];
             if (callback) {
                 NSData* data = characteristic.value;
+                NSLog(@"[UniBLE Native] Calling notify callback with %lu bytes", (unsigned long)data.length);
                 callback([deviceId UTF8String], [characteristicUuid UTF8String], data.bytes, (int)data.length);
             }
         }
@@ -487,8 +520,11 @@ static UniBleManager* g_sharedInstance = nil;
 
 - (void)peripheral:(CBPeripheral*)peripheral didUpdateNotificationStateForCharacteristic:(CBCharacteristic*)characteristic error:(NSError*)error {
     NSString* deviceId = peripheral.identifier.UUIDString;
-    NSString* characteristicUuid = characteristic.UUID.UUIDString;
+    NSString* characteristicUuid = [characteristic.UUID.UUIDString uppercaseString];
     NSMutableDictionary* callbacks = self.peripheralCallbacks[deviceId];
+
+    NSLog(@"[UniBLE Native] didUpdateNotificationStateForCharacteristic: %@, isNotifying: %d, error: %@",
+          characteristicUuid, characteristic.isNotifying, error);
 
     NSString* subscribeKey = [NSString stringWithFormat:@"subscribeCallback_%@", characteristicUuid];
     NSString* unsubscribeKey = [NSString stringWithFormat:@"unsubscribeCallback_%@", characteristicUuid];

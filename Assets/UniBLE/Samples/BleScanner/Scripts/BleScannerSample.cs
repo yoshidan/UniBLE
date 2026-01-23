@@ -430,12 +430,14 @@ namespace UniBLE.Samples
         {
             try
             {
-                // Sample write data - you can modify this
-                var data = Encoding.UTF8.GetBytes("Hello");
-                UpdateStatus($"Writing to {characteristic.Uuid}...");
+                // Write current unix timestamp in seconds (little-endian)
+                var unixSeconds = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var data = BitConverter.GetBytes(unixSeconds);
+                Debug.Log($"[BleScanner] Writing unix timestamp: {unixSeconds} (bytes: {BitConverter.ToString(data)})");
+                UpdateStatus($"Writing timestamp to {characteristic.Uuid}...");
                 await characteristic.WriteAsync(data);
                 Debug.Log($"[BleScanner] Write to {characteristic.Uuid} succeeded");
-                UpdateStatus($"Write succeeded");
+                UpdateStatus($"Write succeeded: {unixSeconds}");
             }
             catch (Exception e)
             {
