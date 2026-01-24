@@ -18,7 +18,7 @@ typedef void (*DisconnectCallback)(const char* deviceId, const char* error);
 
 // Exported functions
 extern "C" {
-    void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback);
+    void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback, DisconnectCallback disconnectCallback);
     bool UniBle_IsAvailable(void);
     void UniBle_StartScan(const char* serviceUuidsJson);
     void UniBle_StopScan(void);

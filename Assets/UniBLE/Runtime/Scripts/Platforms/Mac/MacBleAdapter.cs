@@ -25,7 +25,7 @@ namespace UniBLE.Platforms.Mac
 
         #region Native Methods
         [DllImport("UniBlePlugin")]
-        private static extern void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback);
+        private static extern void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback, DisconnectCallback disconnectCallback);
 
         [DllImport("UniBlePlugin")]
         private static extern bool UniBle_IsAvailable();
@@ -40,9 +40,11 @@ namespace UniBLE.Platforms.Mac
         #region Callbacks
         private delegate void StateChangedCallback(int state);
         private delegate void DeviceDiscoveredCallback(IntPtr deviceId, IntPtr deviceName, IntPtr serviceUuidsJson);
+        internal delegate void DisconnectCallback(string deviceId, string error);
 
         private static StateChangedCallback _stateChangedCallback;
         private static DeviceDiscoveredCallback _deviceDiscoveredCallback;
+        private static DisconnectCallback _disconnectCallback;
         #endregion
 
         private static string PtrToString(IntPtr ptr)
@@ -58,8 +60,9 @@ namespace UniBLE.Platforms.Mac
             _stateReadyTcs = new TaskCompletionSource<bool>();
             _stateChangedCallback = OnNativeStateChanged;
             _deviceDiscoveredCallback = OnNativeDeviceDiscovered;
+            _disconnectCallback = MacBleDevice.OnGlobalDisconnect;
             UnityEngine.Debug.Log("[UniBLE] Calling UniBle_Initialize...");
-            UniBle_Initialize(_stateChangedCallback, _deviceDiscoveredCallback);
+            UniBle_Initialize(_stateChangedCallback, _deviceDiscoveredCallback, _disconnectCallback);
             UnityEngine.Debug.Log("[UniBLE] UniBle_Initialize returned");
         }
 

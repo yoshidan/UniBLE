@@ -16,9 +16,10 @@ static const int PROP_INDICATE = 32;
 @property (nonatomic, strong) NSMutableDictionary<NSString*, NSMutableDictionary*>* peripheralCallbacks;
 @property (nonatomic, assign) StateChangedCallback stateChangedCallback;
 @property (nonatomic, assign) DeviceDiscoveredCallback deviceDiscoveredCallback;
+@property (nonatomic, assign) DisconnectCallback globalDisconnectCallback;
 
 + (instancetype)shared;
-- (void)initializeWithStateCallback:(StateChangedCallback)stateCallback deviceCallback:(DeviceDiscoveredCallback)deviceCallback;
+- (void)initializeWithStateCallback:(StateChangedCallback)stateCallback deviceCallback:(DeviceDiscoveredCallback)deviceCallback disconnectCallback:(DisconnectCallback)disconnectCallback;
 - (BOOL)isAvailable;
 - (void)startScanWithServiceUuids:(NSArray<CBUUID*>*)serviceUuids;
 - (void)stopScan;
@@ -58,9 +59,10 @@ static UniBleManager* g_sharedInstance = nil;
     return self;
 }
 
-- (void)initializeWithStateCallback:(StateChangedCallback)stateCallback deviceCallback:(DeviceDiscoveredCallback)deviceCallback {
+- (void)initializeWithStateCallback:(StateChangedCallback)stateCallback deviceCallback:(DeviceDiscoveredCallback)deviceCallback disconnectCallback:(DisconnectCallback)disconnectCallback {
     self.stateChangedCallback = stateCallback;
     self.deviceDiscoveredCallback = deviceCallback;
+    self.globalDisconnectCallback = disconnectCallback;
 
     if (!self.centralManager) {
         self.centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil];
@@ -411,16 +413,24 @@ static UniBleManager* g_sharedInstance = nil;
     NSString* deviceId = peripheral.identifier.UUIDString;
     NSLog(@"[UniBLE Native] didDisconnectPeripheral: %@, error: %@", deviceId, error);
 
+    const char* errorStr = error ? [error.localizedDescription UTF8String] : nil;
+    const char* deviceIdStr = [deviceId UTF8String];
+
     NSMutableDictionary* callbacks = self.peripheralCallbacks[deviceId];
     NSValue* callbackValue = callbacks[@"disconnectCallback"];
 
+    // Call per-device callback if exists (from explicit DisconnectAsync call)
     if (callbackValue) {
         DisconnectCallback callback = (DisconnectCallback)[callbackValue pointerValue];
         if (callback) {
-            const char* errorStr = error ? [error.localizedDescription UTF8String] : nil;
-            callback([deviceId UTF8String], errorStr);
+            callback(deviceIdStr, errorStr);
         }
         [callbacks removeObjectForKey:@"disconnectCallback"];
+    }
+
+    // Always call global disconnect callback (for unexpected disconnections)
+    if (self.globalDisconnectCallback) {
+        self.globalDisconnectCallback(deviceIdStr, errorStr);
     }
 
     // Clear delegate
@@ -589,8 +599,8 @@ static UniBleManager* g_sharedInstance = nil;
 
 extern "C" {
 
-void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback) {
-    [[UniBleManager shared] initializeWithStateCallback:stateCallback deviceCallback:deviceCallback];
+void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback, DisconnectCallback disconnectCallback) {
+    [[UniBleManager shared] initializeWithStateCallback:stateCallback deviceCallback:deviceCallback disconnectCallback:disconnectCallback];
 }
 
 bool UniBle_IsAvailable(void) {

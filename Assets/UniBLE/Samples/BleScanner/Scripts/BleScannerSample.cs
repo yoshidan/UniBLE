@@ -230,12 +230,12 @@ namespace UniBLE.Samples
             try
             {
                 UpdateStatus($"Connecting to {device.Name}...");
-                await device.ConnectAsync();
-                _connectedDevice = device;
                 device.OnConnectionStateChanged += (state) =>                                                                                                                                          
                 {                                                                                                                                                                                      
                     Debug.Log($"Connection state: {state}"); // Connected, Disconnecting, Disconnected                                                                                                 
                 };           
+                await device.ConnectAsync();
+                _connectedDevice = device;
                 UpdateStatus($"Connected to {device.Name}!");
                 Debug.Log($"[BleScanner] Connected to {device.Name} ({device.Id})");
 

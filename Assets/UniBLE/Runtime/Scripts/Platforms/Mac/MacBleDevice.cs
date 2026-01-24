@@ -159,13 +159,11 @@ namespace UniBLE.Platforms.Mac
         [MonoPInvokeCallback(typeof(DisconnectCallback))]
         private static void OnNativeDisconnectResult(string deviceId, string error)
         {
+            // This is called only for explicit DisconnectAsync calls
+            // State change is handled by OnGlobalDisconnect
             MainThreadDispatcher.Enqueue(() =>
             {
                 if (!_devices.TryGetValue(deviceId, out var device)) return;
-
-                device._connectionState = BleConnectionState.Disconnected;
-                device.OnConnectionStateChanged?.Invoke(device._connectionState);
-                device._services.Clear();
 
                 if (!string.IsNullOrEmpty(error))
                 {
@@ -173,6 +171,25 @@ namespace UniBLE.Platforms.Mac
                 }
 
                 device._disconnectTcs?.TrySetResult(true);
+            });
+        }
+
+        [MonoPInvokeCallback(typeof(MacBleAdapter.DisconnectCallback))]
+        internal static void OnGlobalDisconnect(string deviceId, string error)
+        {
+            // This is called for ALL disconnections (explicit and unexpected)
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                if (!_devices.TryGetValue(deviceId, out var device)) return;
+
+                // Skip if already disconnected
+                if (device._connectionState == BleConnectionState.Disconnected) return;
+
+                device._connectionState = BleConnectionState.Disconnected;
+                device._services.Clear();
+                device.OnConnectionStateChanged?.Invoke(device._connectionState);
+
+                Debug.Log($"[UniBLE] Device disconnected: {deviceId}" + (error != null ? $", error: {error}" : ""));
             });
         }
 
