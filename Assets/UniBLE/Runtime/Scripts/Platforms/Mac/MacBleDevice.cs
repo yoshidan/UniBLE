@@ -18,6 +18,7 @@ namespace UniBLE.Platforms.Mac
         private readonly Dictionary<string, MacBleService> _services = new Dictionary<string, MacBleService>();
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
+        private TaskCompletionSource<bool> _disconnectTcs;
         private TaskCompletionSource<IReadOnlyList<IBleService>> _discoverServicesTcs;
 
         public string Id { get; }
@@ -30,7 +31,7 @@ namespace UniBLE.Platforms.Mac
         private static extern void UniBle_Connect(string deviceId, ConnectionCallback callback);
 
         [DllImport("UniBlePlugin")]
-        private static extern void UniBle_Disconnect(string deviceId);
+        private static extern void UniBle_Disconnect(string deviceId, DisconnectCallback callback);
 
         [DllImport("UniBlePlugin")]
         private static extern void UniBle_DiscoverServices(string deviceId, ServiceDiscoveryCallback callback);
@@ -38,15 +39,18 @@ namespace UniBLE.Platforms.Mac
 
         #region Callbacks
         private delegate void ConnectionCallback(string deviceId, bool success, string error);
+        private delegate void DisconnectCallback(string deviceId, string error);
         private delegate void ServiceDiscoveryCallback(string deviceId, string servicesJson, string error);
 
         private static ConnectionCallback _connectionCallback;
+        private static DisconnectCallback _disconnectCallback;
         private static ServiceDiscoveryCallback _serviceDiscoveryCallback;
         #endregion
 
         static MacBleDevice()
         {
             _connectionCallback = OnNativeConnectionResult;
+            _disconnectCallback = OnNativeDisconnectResult;
             _serviceDiscoveryCallback = OnNativeServicesDiscovered;
         }
 
@@ -85,19 +89,18 @@ namespace UniBLE.Platforms.Mac
                 return Task.CompletedTask;
             }
 
+            _disconnectTcs = new TaskCompletionSource<bool>();
+            cancellationToken.Register(() => _disconnectTcs.TrySetCanceled());
+
             _connectionState = BleConnectionState.Disconnecting;
             OnConnectionStateChanged?.Invoke(_connectionState);
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_Disconnect(Id);
+                UniBle_Disconnect(Id, _disconnectCallback);
             });
 
-            _connectionState = BleConnectionState.Disconnected;
-            OnConnectionStateChanged?.Invoke(_connectionState);
-            _services.Clear();
-
-            return Task.CompletedTask;
+            return _disconnectTcs.Task;
         }
 
         public Task<IReadOnlyList<IBleService>> GetServicesAsync(CancellationToken cancellationToken = default)
@@ -150,6 +153,26 @@ namespace UniBLE.Platforms.Mac
                     device.OnConnectionStateChanged?.Invoke(device._connectionState);
                     device._connectTcs?.TrySetException(new BleException(BleErrorCode.ConnectionFailed, error ?? "Connection failed"));
                 }
+            });
+        }
+
+        [MonoPInvokeCallback(typeof(DisconnectCallback))]
+        private static void OnNativeDisconnectResult(string deviceId, string error)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                if (!_devices.TryGetValue(deviceId, out var device)) return;
+
+                device._connectionState = BleConnectionState.Disconnected;
+                device.OnConnectionStateChanged?.Invoke(device._connectionState);
+                device._services.Clear();
+
+                if (!string.IsNullOrEmpty(error))
+                {
+                    Debug.LogWarning($"[UniBLE] Disconnect error: {error}");
+                }
+
+                device._disconnectTcs?.TrySetResult(true);
             });
         }
 

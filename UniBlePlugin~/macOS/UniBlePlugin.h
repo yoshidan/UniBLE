@@ -14,6 +14,7 @@ typedef void (*ReadCallback)(const char* deviceId, const char* characteristicUui
 typedef void (*WriteCallback)(const char* deviceId, const char* characteristicUuid, const char* error);
 typedef void (*NotifyCallback)(const char* deviceId, const char* characteristicUuid, const void* data, int dataLength);
 typedef void (*SubscribeCallback)(const char* deviceId, const char* characteristicUuid, const char* error);
+typedef void (*DisconnectCallback)(const char* deviceId, const char* error);
 
 // Exported functions
 extern "C" {
@@ -22,7 +23,7 @@ extern "C" {
     void UniBle_StartScan(const char* serviceUuidsJson);
     void UniBle_StopScan(void);
     void UniBle_Connect(const char* deviceId, ConnectionCallback callback);
-    void UniBle_Disconnect(const char* deviceId);
+    void UniBle_Disconnect(const char* deviceId, DisconnectCallback callback);
     void UniBle_DiscoverServices(const char* deviceId, ServiceDiscoveryCallback callback);
     void UniBle_DiscoverCharacteristics(const char* deviceId, const char* serviceUuid, CharacteristicDiscoveryCallback callback);
     void UniBle_ReadCharacteristic(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, ReadCallback callback);

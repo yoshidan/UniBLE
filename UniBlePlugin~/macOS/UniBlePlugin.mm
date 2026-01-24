@@ -23,7 +23,7 @@ static const int PROP_INDICATE = 32;
 - (void)startScanWithServiceUuids:(NSArray<CBUUID*>*)serviceUuids;
 - (void)stopScan;
 - (void)connectPeripheral:(NSString*)deviceId callback:(ConnectionCallback)callback;
-- (void)disconnectPeripheral:(NSString*)deviceId;
+- (void)disconnectPeripheral:(NSString*)deviceId callback:(DisconnectCallback)callback;
 - (void)discoverServicesForPeripheral:(NSString*)deviceId callback:(ServiceDiscoveryCallback)callback;
 - (void)discoverCharacteristicsForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid callback:(CharacteristicDiscoveryCallback)callback;
 - (void)readCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid callback:(ReadCallback)callback;
@@ -106,11 +106,21 @@ static UniBleManager* g_sharedInstance = nil;
     [self.centralManager connectPeripheral:peripheral options:nil];
 }
 
-- (void)disconnectPeripheral:(NSString*)deviceId {
+- (void)disconnectPeripheral:(NSString*)deviceId callback:(DisconnectCallback)callback {
     CBPeripheral* peripheral = self.peripherals[deviceId];
-    if (peripheral) {
-        [self.centralManager cancelPeripheralConnection:peripheral];
+    if (!peripheral) {
+        if (callback) {
+            callback([deviceId UTF8String], "Peripheral not found");
+        }
+        return;
     }
+
+    NSMutableDictionary* callbacks = [self callbacksForPeripheral:deviceId];
+    if (callback) {
+        callbacks[@"disconnectCallback"] = [NSValue valueWithPointer:(void*)callback];
+    }
+
+    [self.centralManager cancelPeripheralConnection:peripheral];
 }
 
 - (void)discoverServicesForPeripheral:(NSString*)deviceId callback:(ServiceDiscoveryCallback)callback {
@@ -398,7 +408,23 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)centralManager:(CBCentralManager*)central didDisconnectPeripheral:(CBPeripheral*)peripheral error:(NSError*)error {
-    NSLog(@"[UniBLE Native] didDisconnectPeripheral: %@, error: %@", peripheral.identifier.UUIDString, error);
+    NSString* deviceId = peripheral.identifier.UUIDString;
+    NSLog(@"[UniBLE Native] didDisconnectPeripheral: %@, error: %@", deviceId, error);
+
+    NSMutableDictionary* callbacks = self.peripheralCallbacks[deviceId];
+    NSValue* callbackValue = callbacks[@"disconnectCallback"];
+
+    if (callbackValue) {
+        DisconnectCallback callback = (DisconnectCallback)[callbackValue pointerValue];
+        if (callback) {
+            const char* errorStr = error ? [error.localizedDescription UTF8String] : nil;
+            callback([deviceId UTF8String], errorStr);
+        }
+        [callbacks removeObjectForKey:@"disconnectCallback"];
+    }
+
+    // Clear delegate
+    peripheral.delegate = nil;
 }
 
 #pragma mark - CBPeripheralDelegate
@@ -626,9 +652,9 @@ void UniBle_Connect(const char* deviceId, ConnectionCallback callback) {
     [[UniBleManager shared] connectPeripheral:deviceIdStr callback:callback];
 }
 
-void UniBle_Disconnect(const char* deviceId) {
+void UniBle_Disconnect(const char* deviceId, DisconnectCallback callback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
-    [[UniBleManager shared] disconnectPeripheral:deviceIdStr];
+    [[UniBleManager shared] disconnectPeripheral:deviceIdStr callback:callback];
 }
 
 void UniBle_DiscoverServices(const char* deviceId, ServiceDiscoveryCallback callback) {
