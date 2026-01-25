@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX || UNITY_IOS
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -6,14 +6,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using AOT;
 
-namespace UniBLE.Platforms.Mac
+namespace UniBLE.Platforms.Apple
 {
     /// <summary>
     /// macOS BLE characteristic implementation
     /// </summary>
-    public class MacBleCharacteristic : IBleCharacteristic
+    public class AppleBleCharacteristic : IBleCharacteristic
     {
-        private static readonly Dictionary<string, MacBleCharacteristic> _characteristics = new Dictionary<string, MacBleCharacteristic>();
+        private static readonly Dictionary<string, AppleBleCharacteristic> _characteristics = new Dictionary<string, AppleBleCharacteristic>();
         private readonly string _deviceId;
         private readonly string _serviceUuid;
         private TaskCompletionSource<byte[]> _readTcs;
@@ -26,16 +26,16 @@ namespace UniBLE.Platforms.Mac
         private Action<byte[]> _onNotify;
 
         #region Native Methods
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_ReadCharacteristic(string deviceId, string serviceUuid, string characteristicUuid, ReadCallback callback);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_WriteCharacteristic(string deviceId, string serviceUuid, string characteristicUuid, byte[] data, int dataLength, bool withResponse, WriteCallback callback);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_Subscribe(string deviceId, string serviceUuid, string characteristicUuid, NotifyCallback notifyCallback, SubscribeCallback resultCallback);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_Unsubscribe(string deviceId, string serviceUuid, string characteristicUuid, SubscribeCallback resultCallback);
         #endregion
 
@@ -52,7 +52,7 @@ namespace UniBLE.Platforms.Mac
         private static SubscribeCallback _unsubscribeCallback;
         #endregion
 
-        static MacBleCharacteristic()
+        static AppleBleCharacteristic()
         {
             _readCallback = OnNativeReadResult;
             _writeCallback = OnNativeWriteResult;
@@ -61,7 +61,7 @@ namespace UniBLE.Platforms.Mac
             _unsubscribeCallback = OnNativeUnsubscribeResult;
         }
 
-        internal MacBleCharacteristic(string uuid, BleCharacteristicProperties properties, string deviceId, string serviceUuid)
+        internal AppleBleCharacteristic(string uuid, BleCharacteristicProperties properties, string deviceId, string serviceUuid)
         {
             Uuid = uuid;
             Properties = properties;
@@ -159,7 +159,7 @@ namespace UniBLE.Platforms.Mac
             MainThreadDispatcher.Enqueue(() =>
             {
                 // Find characteristic by iterating (we don't have serviceUuid in callback)
-                MacBleCharacteristic characteristic = null;
+                AppleBleCharacteristic characteristic = null;
                 foreach (var kvp in _characteristics)
                 {
                     if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
@@ -186,7 +186,7 @@ namespace UniBLE.Platforms.Mac
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                MacBleCharacteristic characteristic = null;
+                AppleBleCharacteristic characteristic = null;
                 foreach (var kvp in _characteristics)
                 {
                     if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
@@ -220,7 +220,7 @@ namespace UniBLE.Platforms.Mac
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                MacBleCharacteristic characteristic = null;
+                AppleBleCharacteristic characteristic = null;
                 foreach (var kvp in _characteristics)
                 {
                     if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
@@ -240,7 +240,7 @@ namespace UniBLE.Platforms.Mac
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                MacBleCharacteristic characteristic = null;
+                AppleBleCharacteristic characteristic = null;
                 foreach (var kvp in _characteristics)
                 {
                     if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
@@ -267,7 +267,7 @@ namespace UniBLE.Platforms.Mac
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                MacBleCharacteristic characteristic = null;
+                AppleBleCharacteristic characteristic = null;
                 foreach (var kvp in _characteristics)
                 {
                     if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))

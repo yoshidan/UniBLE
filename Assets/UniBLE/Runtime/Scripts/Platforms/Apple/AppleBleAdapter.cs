@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX || UNITY_IOS
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -6,15 +6,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using AOT;
 
-namespace UniBLE.Platforms.Mac
+namespace UniBLE.Platforms.Apple
 {
     /// <summary>
-    /// macOS BLE adapter implementation using CoreBluetooth
+    /// Apple (macOS/iOS) BLE adapter implementation using CoreBluetooth
     /// </summary>
-    public class MacBleAdapter : IBleAdapter
+    public class AppleBleAdapter : IBleAdapter
     {
-        private static MacBleAdapter _instance;
-        private readonly Dictionary<string, MacBleDevice> _discoveredDevices = new Dictionary<string, MacBleDevice>();
+        private static AppleBleAdapter _instance;
+        private readonly Dictionary<string, AppleBleDevice> _discoveredDevices = new Dictionary<string, AppleBleDevice>();
         private Action<IBleDevice> _onDeviceDiscovered;
         private BleAdapterState _state = BleAdapterState.Unknown;
         private bool _isScanning;
@@ -23,17 +23,23 @@ namespace UniBLE.Platforms.Mac
         public BleAdapterState State => _state;
         public event Action<BleAdapterState> OnStateChanged;
 
+#if UNITY_IOS && !UNITY_EDITOR
+        private const string DllName = "__Internal";
+#else
+        private const string DllName = "UniBlePlugin";
+#endif
+
         #region Native Methods
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback, DisconnectCallback disconnectCallback);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern bool UniBle_IsAvailable();
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_StartScan(string serviceUuidsJson);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_StopScan();
         #endregion
 
@@ -53,14 +59,14 @@ namespace UniBLE.Platforms.Mac
             return Marshal.PtrToStringAnsi(ptr);
         }
 
-        public MacBleAdapter()
+        public AppleBleAdapter()
         {
-            UnityEngine.Debug.Log("[UniBLE] MacBleAdapter constructor start");
+            UnityEngine.Debug.Log("[UniBLE] AppleBleAdapter constructor start");
             _instance = this;
             _stateReadyTcs = new TaskCompletionSource<bool>();
             _stateChangedCallback = OnNativeStateChanged;
             _deviceDiscoveredCallback = OnNativeDeviceDiscovered;
-            _disconnectCallback = MacBleDevice.OnGlobalDisconnect;
+            _disconnectCallback = AppleBleDevice.OnGlobalDisconnect;
             UnityEngine.Debug.Log("[UniBLE] Calling UniBle_Initialize...");
             UniBle_Initialize(_stateChangedCallback, _deviceDiscoveredCallback, _disconnectCallback);
             UnityEngine.Debug.Log("[UniBLE] UniBle_Initialize returned");
@@ -81,8 +87,14 @@ namespace UniBLE.Platforms.Mac
 
         public Task<bool> RequestPermissionAsync(CancellationToken cancellationToken = default)
         {
+#if UNITY_IOS && !UNITY_EDITOR
+            // iOS requires Bluetooth permission (handled by Info.plist)
+            // The system will prompt automatically when BLE is accessed
+            return Task.FromResult(true);
+#else
             // macOS doesn't require explicit permission request for BLE
             return Task.FromResult(true);
+#endif
         }
 
         public Task StartScanAsync(
@@ -143,7 +155,7 @@ namespace UniBLE.Platforms.Mac
             }
 
             // Create a new device for known device connection
-            var newDevice = new MacBleDevice(deviceId, "Unknown");
+            var newDevice = new AppleBleDevice(deviceId, "Unknown");
             _discoveredDevices[deviceId] = newDevice;
             return Task.FromResult<IBleDevice>(newDevice);
         }
@@ -197,7 +209,7 @@ namespace UniBLE.Platforms.Mac
 
                     if (!_instance._discoveredDevices.ContainsKey(deviceId))
                     {
-                        var device = new MacBleDevice(deviceId, deviceName);
+                        var device = new AppleBleDevice(deviceId, deviceName);
                         _instance._discoveredDevices[deviceId] = device;
                         _instance._onDeviceDiscovered?.Invoke(device);
                     }

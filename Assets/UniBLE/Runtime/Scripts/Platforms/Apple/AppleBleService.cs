@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX || UNITY_IOS
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -6,22 +6,22 @@ using System.Threading;
 using System.Threading.Tasks;
 using AOT;
 
-namespace UniBLE.Platforms.Mac
+namespace UniBLE.Platforms.Apple
 {
     /// <summary>
     /// macOS BLE service implementation
     /// </summary>
-    public class MacBleService : IBleService
+    public class AppleBleService : IBleService
     {
-        private static readonly Dictionary<string, MacBleService> _services = new Dictionary<string, MacBleService>();
-        private readonly Dictionary<string, MacBleCharacteristic> _characteristics = new Dictionary<string, MacBleCharacteristic>();
+        private static readonly Dictionary<string, AppleBleService> _services = new Dictionary<string, AppleBleService>();
+        private readonly Dictionary<string, AppleBleCharacteristic> _characteristics = new Dictionary<string, AppleBleCharacteristic>();
         private readonly string _deviceId;
         private TaskCompletionSource<IReadOnlyList<IBleCharacteristic>> _discoverCharacteristicsTcs;
 
         public string Uuid { get; }
 
         #region Native Methods
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_DiscoverCharacteristics(string deviceId, string serviceUuid, CharacteristicDiscoveryCallback callback);
         #endregion
 
@@ -31,12 +31,12 @@ namespace UniBLE.Platforms.Mac
         private static CharacteristicDiscoveryCallback _characteristicDiscoveryCallback;
         #endregion
 
-        static MacBleService()
+        static AppleBleService()
         {
             _characteristicDiscoveryCallback = OnNativeCharacteristicsDiscovered;
         }
 
-        internal MacBleService(string uuid, string deviceId)
+        internal AppleBleService(string uuid, string deviceId)
         {
             Uuid = uuid;
             _deviceId = deviceId;
@@ -98,7 +98,7 @@ namespace UniBLE.Platforms.Mac
                     var items = ParseCharacteristicsJson(characteristicsJson);
                     foreach (var item in items)
                     {
-                        var characteristic = new MacBleCharacteristic(item.uuid, item.properties, deviceId, serviceUuid);
+                        var characteristic = new AppleBleCharacteristic(item.uuid, item.properties, deviceId, serviceUuid);
                         service._characteristics[item.uuid] = characteristic;
                         result.Add(characteristic);
                     }

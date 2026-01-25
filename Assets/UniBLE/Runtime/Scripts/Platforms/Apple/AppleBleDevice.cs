@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX || UNITY_IOS
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -7,15 +7,15 @@ using System.Threading.Tasks;
 using AOT;
 using UnityEngine;
 
-namespace UniBLE.Platforms.Mac
+namespace UniBLE.Platforms.Apple
 {
     /// <summary>
-    /// macOS BLE device implementation
+    /// Apple (macOS/iOS) BLE device implementation
     /// </summary>
-    public class MacBleDevice : IBleDevice
+    public class AppleBleDevice : IBleDevice
     {
-        private static readonly Dictionary<string, MacBleDevice> _devices = new Dictionary<string, MacBleDevice>();
-        private readonly Dictionary<string, MacBleService> _services = new Dictionary<string, MacBleService>();
+        private static readonly Dictionary<string, AppleBleDevice> _devices = new Dictionary<string, AppleBleDevice>();
+        private readonly Dictionary<string, AppleBleService> _services = new Dictionary<string, AppleBleService>();
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
         private TaskCompletionSource<bool> _disconnectTcs;
@@ -26,14 +26,20 @@ namespace UniBLE.Platforms.Mac
         public BleConnectionState ConnectionState => _connectionState;
         public event Action<BleConnectionState> OnConnectionStateChanged;
 
+#if UNITY_IOS && !UNITY_EDITOR
+        private const string DllName = "__Internal";
+#else
+        private const string DllName = "UniBlePlugin";
+#endif
+
         #region Native Methods
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_Connect(string deviceId, ConnectionCallback callback);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_Disconnect(string deviceId, DisconnectCallback callback);
 
-        [DllImport("UniBlePlugin")]
+        [DllImport(DllName)]
         private static extern void UniBle_DiscoverServices(string deviceId, ServiceDiscoveryCallback callback);
         #endregion
 
@@ -47,14 +53,14 @@ namespace UniBLE.Platforms.Mac
         private static ServiceDiscoveryCallback _serviceDiscoveryCallback;
         #endregion
 
-        static MacBleDevice()
+        static AppleBleDevice()
         {
             _connectionCallback = OnNativeConnectionResult;
             _disconnectCallback = OnNativeDisconnectResult;
             _serviceDiscoveryCallback = OnNativeServicesDiscovered;
         }
 
-        internal MacBleDevice(string id, string name)
+        internal AppleBleDevice(string id, string name)
         {
             Id = id;
             Name = name ?? "Unknown";
@@ -174,7 +180,7 @@ namespace UniBLE.Platforms.Mac
             });
         }
 
-        [MonoPInvokeCallback(typeof(MacBleAdapter.DisconnectCallback))]
+        [MonoPInvokeCallback(typeof(AppleBleAdapter.DisconnectCallback))]
         internal static void OnGlobalDisconnect(string deviceId, string error)
         {
             // This is called for ALL disconnections (explicit and unexpected)
@@ -215,7 +221,7 @@ namespace UniBLE.Platforms.Mac
                     var uuids = ParseJsonStringArray(servicesJson);
                     foreach (var uuid in uuids)
                     {
-                        var service = new MacBleService(uuid, deviceId);
+                        var service = new AppleBleService(uuid, deviceId);
                         device._services[uuid] = service;
                         result.Add(service);
                     }
