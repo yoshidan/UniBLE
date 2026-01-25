@@ -26,6 +26,8 @@ namespace UniBLE.Samples
         private bool _isScanning;
         private IBleDevice _connectedDevice;
         private readonly List<GameObject> _characteristicButtons = new List<GameObject>();
+        private readonly HashSet<string> _subscribedCharacteristics = new HashSet<string>();
+        private GameObject _disconnectButton;
 
         private async void Start()
         {
@@ -242,6 +244,9 @@ namespace UniBLE.Samples
                 // Clear previous characteristic buttons
                 ClearCharacteristicButtons();
 
+                // Add Disconnect button
+                CreateDisconnectButton();
+
                 // Discover services after connection
                 UpdateStatus($"Discovering services...");
                 var services = await device.GetServicesAsync();
@@ -317,6 +322,8 @@ namespace UniBLE.Samples
                 Destroy(go);
             }
             _characteristicButtons.Clear();
+            _subscribedCharacteristics.Clear();
+            _disconnectButton = null;
         }
 
         private void CreateCharacteristicUI(IBleService service, IBleCharacteristic characteristic)
@@ -373,15 +380,20 @@ namespace UniBLE.Samples
                     () => OnWriteClicked(characteristic));
             }
 
-            // Notify button
+            // Notify/Unsubscribe button
             if (hasNotify)
             {
-                CreateActionButton(containerGo.transform, "Notify", new Color(0.6f, 0.7f, 0.9f),
-                    () => OnNotifyClicked(characteristic));
+                var isSubscribed = _subscribedCharacteristics.Contains(characteristic.Uuid);
+                var notifyButtonGo = CreateActionButton(containerGo.transform,
+                    isSubscribed ? "Unsub" : "Notify",
+                    isSubscribed ? new Color(0.9f, 0.6f, 0.6f) : new Color(0.6f, 0.7f, 0.9f),
+                    null);
+                var notifyButton = notifyButtonGo.GetComponent<Button>();
+                notifyButton.onClick.AddListener(() => OnNotifyClicked(characteristic, notifyButtonGo));
             }
         }
 
-        private void CreateActionButton(Transform parent, string label, Color color, Action onClick)
+        private GameObject CreateActionButton(Transform parent, string label, Color color, Action onClick)
         {
             var buttonGo = new GameObject(label);
             buttonGo.transform.SetParent(parent, false);
@@ -390,7 +402,10 @@ namespace UniBLE.Samples
             image.color = color;
 
             var button = buttonGo.AddComponent<Button>();
-            button.onClick.AddListener(() => onClick());
+            if (onClick != null)
+            {
+                button.onClick.AddListener(() => onClick());
+            }
 
             var layoutElement = buttonGo.AddComponent<LayoutElement>();
             layoutElement.minWidth = 100;
@@ -410,6 +425,8 @@ namespace UniBLE.Samples
             textRect.anchorMax = Vector2.one;
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
+
+            return buttonGo;
         }
 
         private async void OnReadClicked(IBleCharacteristic characteristic)
@@ -450,24 +467,131 @@ namespace UniBLE.Samples
             }
         }
 
-        private async void OnNotifyClicked(IBleCharacteristic characteristic)
+        private async void OnNotifyClicked(IBleCharacteristic characteristic, GameObject buttonGo)
         {
+            var isSubscribed = _subscribedCharacteristics.Contains(characteristic.Uuid);
+
+            if (isSubscribed)
+            {
+                // Unsubscribe
+                try
+                {
+                    UpdateStatus($"Unsubscribing from {characteristic.Uuid}...");
+                    await characteristic.UnsubscribeAsync();
+                    _subscribedCharacteristics.Remove(characteristic.Uuid);
+                    Debug.Log($"[BleScanner] Unsubscribed from {characteristic.Uuid}");
+                    UpdateStatus($"Unsubscribed");
+
+                    // Update button appearance
+                    UpdateNotifyButton(buttonGo, false);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[BleScanner] Unsubscribe error: {e.Message}");
+                    UpdateStatus($"Unsubscribe failed: {e.Message}");
+                }
+            }
+            else
+            {
+                // Subscribe
+                try
+                {
+                    UpdateStatus($"Subscribing to {characteristic.Uuid}...");
+                    await characteristic.SubscribeAsync(data =>
+                    {
+                        var hex = BitConverter.ToString(data).Replace("-", " ");
+                        Debug.Log($"[BleScanner] Notify from {characteristic.Uuid}: [{hex}]");
+                        UpdateStatus($"Notify: {hex}");
+                    });
+                    _subscribedCharacteristics.Add(characteristic.Uuid);
+                    Debug.Log($"[BleScanner] Subscribed to {characteristic.Uuid}");
+                    UpdateStatus($"Subscribed to notifications");
+
+                    // Update button appearance
+                    UpdateNotifyButton(buttonGo, true);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[BleScanner] Subscribe error: {e.Message}");
+                    UpdateStatus($"Subscribe failed: {e.Message}");
+                }
+            }
+        }
+
+        private void UpdateNotifyButton(GameObject buttonGo, bool isSubscribed)
+        {
+            var image = buttonGo.GetComponent<Image>();
+            var text = buttonGo.GetComponentInChildren<Text>();
+
+            if (isSubscribed)
+            {
+                image.color = new Color(0.9f, 0.6f, 0.6f); // Red for unsubscribe
+                text.text = "Unsub";
+            }
+            else
+            {
+                image.color = new Color(0.6f, 0.7f, 0.9f); // Blue for subscribe
+                text.text = "Notify";
+            }
+        }
+
+        private void CreateDisconnectButton()
+        {
+            if (deviceListContent == null || _connectedDevice == null) return;
+
+            var containerGo = new GameObject("DisconnectContainer");
+            containerGo.transform.SetParent(deviceListContent, false);
+            containerGo.transform.SetAsFirstSibling();
+            _disconnectButton = containerGo;
+            _characteristicButtons.Add(containerGo);
+
+            var containerLayout = containerGo.AddComponent<HorizontalLayoutGroup>();
+            containerLayout.spacing = 10;
+            containerLayout.childForceExpandWidth = false;
+            containerLayout.childForceExpandHeight = true;
+            containerLayout.padding = new RectOffset(5, 5, 5, 5);
+
+            var containerLayoutElement = containerGo.AddComponent<LayoutElement>();
+            containerLayoutElement.minHeight = 70;
+
+            var containerImage = containerGo.AddComponent<Image>();
+            containerImage.color = new Color(0.85f, 0.85f, 0.85f, 1f);
+
+            // Device name label
+            var labelGo = new GameObject("Label");
+            labelGo.transform.SetParent(containerGo.transform, false);
+            var labelText = labelGo.AddComponent<Text>();
+            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            labelText.fontSize = 30;
+            labelText.color = Color.black;
+            labelText.text = $"Connected: {_connectedDevice.Name}";
+            var labelLayout = labelGo.AddComponent<LayoutElement>();
+            labelLayout.minWidth = 400;
+            labelLayout.preferredWidth = 400;
+
+            // Disconnect button
+            CreateActionButton(containerGo.transform, "Disconnect", new Color(0.9f, 0.5f, 0.5f),
+                () => OnDisconnectClicked());
+        }
+
+        private async void OnDisconnectClicked()
+        {
+            if (_connectedDevice == null) return;
+
             try
             {
-                UpdateStatus($"Subscribing to {characteristic.Uuid}...");
-                await characteristic.SubscribeAsync(data =>
-                {
-                    var hex = BitConverter.ToString(data).Replace("-", " ");
-                    Debug.Log($"[BleScanner] Notify from {characteristic.Uuid}: [{hex}]");
-                    UpdateStatus($"Notify: {hex}");
-                });
-                Debug.Log($"[BleScanner] Subscribed to {characteristic.Uuid}");
-                UpdateStatus($"Subscribed to notifications");
+                UpdateStatus($"Disconnecting from {_connectedDevice.Name}...");
+                await _connectedDevice.DisconnectAsync();
+                Debug.Log($"[BleScanner] Disconnected from {_connectedDevice.Name}");
+                UpdateStatus("Disconnected");
+
+                _connectedDevice = null;
+                ClearCharacteristicButtons();
             }
             catch (Exception e)
             {
-                Debug.LogError($"[BleScanner] Subscribe error: {e.Message}");
-                UpdateStatus($"Subscribe failed: {e.Message}");
+                Debug.LogError($"[BleScanner] Disconnect error: {e.Message}");
+                UpdateStatus($"Disconnect failed: {e.Message}");
             }
         }
     }
