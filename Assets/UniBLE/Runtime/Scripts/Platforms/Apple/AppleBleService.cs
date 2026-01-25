@@ -14,6 +14,12 @@ namespace UniBLE.Platforms.Apple
     public class AppleBleService : IBleService
     {
         private static readonly Dictionary<string, AppleBleService> _services = new Dictionary<string, AppleBleService>();
+
+#if UNITY_IOS && !UNITY_EDITOR
+        private const string DllName = "__Internal";
+#else
+        private const string DllName = "UniBlePlugin";
+#endif
         private readonly Dictionary<string, AppleBleCharacteristic> _characteristics = new Dictionary<string, AppleBleCharacteristic>();
         private readonly string _deviceId;
         private TaskCompletionSource<IReadOnlyList<IBleCharacteristic>> _discoverCharacteristicsTcs;
