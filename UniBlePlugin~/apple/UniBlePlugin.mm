@@ -333,8 +333,7 @@ static UniBleManager* g_sharedInstance = nil;
 
     NSLog(@"[UniBLE Native] Calling state callback with state: %d", state);
     if (self.stateChangedCallback) {
-        // Call directly - delegate methods are already on main queue (we passed nil for queue in init)
-        // C# side handles thread safety with MainThreadDispatcher
+        // Call directly - C# side handles thread safety with MainThreadDispatcher
         self.stateChangedCallback(state);
     }
     NSLog(@"[UniBLE Native] State callback done");
@@ -367,28 +366,21 @@ static UniBleManager* g_sharedInstance = nil;
         serviceUuidsJson = [NSString stringWithFormat:@"[%@]", [uuidStrings componentsJoinedByString:@","]];
     }
 
-    // Use sync queue to prevent race conditions
-    dispatch_sync(_syncQueue, ^{
-        if (!self.peripherals[deviceId]) {
-            self.peripherals[deviceId] = peripheral;
-            peripheral.delegate = self;
+    // Already on _syncQueue (CBCentralManager delegate queue), no dispatch needed
+    if (!self.peripherals[deviceId]) {
+        self.peripherals[deviceId] = peripheral;
+        peripheral.delegate = self;
 
-            if (self.deviceDiscoveredCallback) {
-                DeviceDiscoveredCallback callback = self.deviceDiscoveredCallback;
-                NSString* name = peripheral.name ?: @"Unknown";
-                // Copy strings to ensure they remain valid
-                const char* deviceIdCStr = strdup([deviceId UTF8String]);
-                const char* nameCStr = strdup([name UTF8String]);
-                const char* serviceUuidsCStr = serviceUuidsJson ? strdup([serviceUuidsJson UTF8String]) : NULL;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    callback(deviceIdCStr, nameCStr, serviceUuidsCStr);
-                    free((void*)deviceIdCStr);
-                    free((void*)nameCStr);
-                    if (serviceUuidsCStr) free((void*)serviceUuidsCStr);
-                });
-            }
+        if (self.deviceDiscoveredCallback) {
+            // Call C# callback directly - C# copies string data immediately via Marshal.PtrToStringAnsi,
+            // and handles thread safety via MainThreadDispatcher.Enqueue()
+            self.deviceDiscoveredCallback(
+                [deviceId UTF8String],
+                [(peripheral.name ?: @"Unknown") UTF8String],
+                serviceUuidsJson ? [serviceUuidsJson UTF8String] : NULL
+            );
         }
-    });
+    }
 }
 
 - (void)centralManager:(CBCentralManager*)central didConnectPeripheral:(CBPeripheral*)peripheral {
