@@ -17,6 +17,8 @@ static const int PROP_INDICATE = 32;
 @property (nonatomic, assign) StateChangedCallback stateChangedCallback;
 @property (nonatomic, assign) DeviceDiscoveredCallback deviceDiscoveredCallback;
 @property (nonatomic, assign) DisconnectCallback globalDisconnectCallback;
+@property (nonatomic, assign) BOOL pendingScan;
+@property (nonatomic, strong) NSArray<CBUUID*>* pendingScanServiceUuids;
 
 + (instancetype)shared;
 - (void)initializeWithStateCallback:(StateChangedCallback)stateCallback deviceCallback:(DeviceDiscoveredCallback)deviceCallback disconnectCallback:(DisconnectCallback)disconnectCallback;
@@ -75,8 +77,14 @@ static UniBleManager* g_sharedInstance = nil;
 
 - (void)startScanWithServiceUuids:(NSArray<CBUUID*>*)serviceUuids {
     if (self.centralManager.state != CBManagerStatePoweredOn) {
+        NSLog(@"[UniBLE Native] State is not PoweredOn (%ld), queuing scan for later", (long)self.centralManager.state);
+        self.pendingScan = YES;
+        self.pendingScanServiceUuids = serviceUuids;
         return;
     }
+
+    self.pendingScan = NO;
+    self.pendingScanServiceUuids = nil;
 
     // Stop any existing scan first
     [self.centralManager stopScan];
@@ -84,6 +92,7 @@ static UniBleManager* g_sharedInstance = nil;
     // Clear previously discovered peripherals so they can be discovered again
     [self.peripherals removeAllObjects];
 
+    NSLog(@"[UniBLE Native] Actually starting scan now");
     [self.centralManager scanForPeripheralsWithServices:serviceUuids options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @NO}];
 }
 
@@ -328,6 +337,12 @@ static UniBleManager* g_sharedInstance = nil;
         self.stateChangedCallback(state);
     }
     NSLog(@"[UniBLE Native] State callback done");
+
+    // Start pending scan if state became PoweredOn
+    if (central.state == CBManagerStatePoweredOn && self.pendingScan) {
+        NSLog(@"[UniBLE Native] Executing pending scan");
+        [self startScanWithServiceUuids:self.pendingScanServiceUuids];
+    }
 }
 
 - (void)centralManager:(CBCentralManager*)central didDiscoverPeripheral:(CBPeripheral*)peripheral advertisementData:(NSDictionary<NSString*, id>*)advertisementData RSSI:(NSNumber*)RSSI {
