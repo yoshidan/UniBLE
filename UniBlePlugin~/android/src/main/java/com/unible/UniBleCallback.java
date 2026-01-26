@@ -8,4 +8,5 @@ import android.bluetooth.BluetoothDevice;
 public interface UniBleCallback {
     void onDeviceDiscovered(String deviceId, String deviceName, BluetoothDevice device);
     void onStateChanged(int state);
+    void onDeviceDisconnected(String deviceId, String error);
 }

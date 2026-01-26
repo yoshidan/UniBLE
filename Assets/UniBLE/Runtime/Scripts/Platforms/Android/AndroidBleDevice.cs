@@ -17,6 +17,7 @@ namespace UniBLE.Platforms.Android
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
         private TaskCompletionSource<IReadOnlyList<IBleService>> _discoverServicesTcs;
+        private TaskCompletionSource<bool> _disconnectTcs;
 
         public string Id { get; }
         public string Name { get; }
@@ -51,12 +52,16 @@ namespace UniBLE.Platforms.Android
             return _connectTcs.Task;
         }
 
+        // Bug 2: truly async disconnect via TaskCompletionSource
         public Task DisconnectAsync(CancellationToken cancellationToken = default)
         {
-            if (_connectionState == BleConnectionState.Disconnected)
+            if (_connectionState != BleConnectionState.Connected)
             {
                 return Task.CompletedTask;
             }
+
+            _disconnectTcs = new TaskCompletionSource<bool>();
+            cancellationToken.Register(() => _disconnectTcs.TrySetCanceled());
 
             _connectionState = BleConnectionState.Disconnecting;
             OnConnectionStateChanged?.Invoke(_connectionState);
@@ -66,11 +71,7 @@ namespace UniBLE.Platforms.Android
                 _plugin.Call("disconnect", Id);
             });
 
-            _connectionState = BleConnectionState.Disconnected;
-            OnConnectionStateChanged?.Invoke(_connectionState);
-            _services.Clear();
-
-            return Task.CompletedTask;
+            return _disconnectTcs.Task;
         }
 
         public Task<IReadOnlyList<IBleService>> GetServicesAsync(CancellationToken cancellationToken = default)
@@ -118,11 +119,32 @@ namespace UniBLE.Platforms.Android
             _connectTcs?.TrySetException(new BleException(BleErrorCode.ConnectionFailed, error));
         }
 
-        internal void OnDisconnected()
+        // Bug 2: called from adapter's onDeviceDisconnected callback (or ConnectionCallback)
+        internal void OnDisconnected(string error = null)
         {
             _connectionState = BleConnectionState.Disconnected;
             OnConnectionStateChanged?.Invoke(_connectionState);
             _services.Clear();
+
+            if (_disconnectTcs != null)
+            {
+                if (error != null)
+                {
+                    _disconnectTcs.TrySetException(new BleException(BleErrorCode.ConnectionLost, error));
+                }
+                else
+                {
+                    _disconnectTcs.TrySetResult(true);
+                }
+                _disconnectTcs = null;
+            }
+
+            // Also fail any pending connect if the device disconnected unexpectedly during connection
+            if (_connectTcs != null)
+            {
+                _connectTcs.TrySetException(new BleException(BleErrorCode.ConnectionLost, error ?? "Device disconnected"));
+                _connectTcs = null;
+            }
         }
 
         internal void OnServicesDiscovered(AndroidJavaObject[] services)
@@ -173,7 +195,7 @@ namespace UniBLE.Platforms.Android
                 MainThreadDispatcher.Enqueue(() => _device.OnConnectionFailed(error));
             }
 
-            // Called from Java
+            // Called from Java (connection-phase disconnect)
             public void onDisconnected()
             {
                 MainThreadDispatcher.Enqueue(() => _device.OnDisconnected());

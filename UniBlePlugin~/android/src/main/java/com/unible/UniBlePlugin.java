@@ -1,6 +1,5 @@
 package com.unible;
 
-import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
@@ -18,20 +17,21 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
 import android.util.Log;
 
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,7 +39,6 @@ import java.util.UUID;
  */
 public class UniBlePlugin {
     private static final String TAG = "UniBlePlugin";
-    private static final int PERMISSION_REQUEST_CODE = 1001;
     private static final UUID CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     private static UniBlePlugin instance;
@@ -49,7 +48,6 @@ public class UniBlePlugin {
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner scanner;
     private UniBleCallback callback;
-    private PermissionCallback permissionCallback;
     private Handler mainHandler;
 
     private final Map<String, BluetoothDevice> discoveredDevices = new HashMap<>();
@@ -59,8 +57,44 @@ public class UniBlePlugin {
     private final Map<String, ReadCallback> readCallbacks = new HashMap<>();
     private final Map<String, WriteCallback> writeCallbacks = new HashMap<>();
     private final Map<String, NotifyCallback> notifyCallbacks = new HashMap<>();
+    private final Map<String, SubscribeResultCallback> subscribeResultCallbacks = new HashMap<>();
+    private final Map<String, GattQueue> gattQueues = new HashMap<>();
+    private final Set<String> pendingDisconnects = new HashSet<>();
 
     private boolean isScanning = false;
+
+    // --- GattQueue: serializes GATT operations per device (Bug 5) ---
+    private static class GattQueue {
+        private final Queue<Runnable> queue = new LinkedList<>();
+        private boolean busy = false;
+
+        void enqueue(Runnable operation) {
+            Runnable toRun = null;
+            synchronized (this) {
+                queue.add(operation);
+                if (!busy) {
+                    busy = true;
+                    toRun = queue.poll();
+                }
+            }
+            if (toRun != null) {
+                toRun.run();
+            }
+        }
+
+        void complete() {
+            Runnable toRun;
+            synchronized (this) {
+                toRun = queue.poll();
+                if (toRun == null) {
+                    busy = false;
+                }
+            }
+            if (toRun != null) {
+                toRun.run();
+            }
+        }
+    }
 
     public static synchronized UniBlePlugin getInstance() {
         if (instance == null) {
@@ -93,50 +127,8 @@ public class UniBlePlugin {
         return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
     }
 
-    /**
-     * Request required permissions
-     */
-    public void requestPermissions(PermissionCallback callback) {
-        this.permissionCallback = callback;
-
-        if (activity == null) {
-            callback.onResult(false);
-            return;
-        }
-
-        List<String> permissions = new ArrayList<>();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+
-            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.BLUETOOTH_SCAN);
-            }
-            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
-            }
-        } else {
-            // Android 11 and below
-            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            }
-        }
-
-        if (permissions.isEmpty()) {
-            callback.onResult(true);
-        } else {
-            ActivityCompat.requestPermissions(activity, permissions.toArray(new String[0]), PERMISSION_REQUEST_CODE);
-        }
-    }
-
-    /**
-     * Called when permission request result is received
-     */
-    public void onPermissionResult(boolean granted) {
-        if (permissionCallback != null) {
-            permissionCallback.onResult(granted);
-            permissionCallback = null;
-        }
-    }
+    // Bug 1: requestPermissions and onPermissionResult removed.
+    // Permission requests are now handled from C# via UnityEngine.Android.Permission.
 
     /**
      * Start scanning for BLE devices
@@ -234,20 +226,19 @@ public class UniBlePlugin {
     }
 
     /**
-     * Disconnect from a device
+     * Disconnect from a device (Bug 2: only calls gatt.disconnect(), cleanup deferred to callback)
      */
     @SuppressLint("MissingPermission")
     public void disconnect(String deviceId) {
         BluetoothGatt gatt = connectedGatts.get(deviceId);
         if (gatt != null) {
+            pendingDisconnects.add(deviceId);
             gatt.disconnect();
-            gatt.close();
-            connectedGatts.remove(deviceId);
         }
     }
 
     /**
-     * Discover services for a device
+     * Discover services for a device (Bug 5: queued)
      */
     @SuppressLint("MissingPermission")
     public void discoverServices(String deviceId, ServiceDiscoveryCallback callback) {
@@ -257,12 +248,21 @@ public class UniBlePlugin {
             return;
         }
 
+        GattQueue queue = gattQueues.get(deviceId);
+        if (queue == null) {
+            callback.onServiceDiscoveryFailed("Device not connected");
+            return;
+        }
+
         serviceDiscoveryCallbacks.put(deviceId, callback);
 
-        if (!gatt.discoverServices()) {
-            serviceDiscoveryCallbacks.remove(deviceId);
-            callback.onServiceDiscoveryFailed("Failed to start service discovery");
-        }
+        queue.enqueue(() -> {
+            if (!gatt.discoverServices()) {
+                serviceDiscoveryCallbacks.remove(deviceId);
+                queue.complete();
+                mainHandler.post(() -> callback.onServiceDiscoveryFailed("Failed to start service discovery"));
+            }
+        });
     }
 
     /**
@@ -294,7 +294,7 @@ public class UniBlePlugin {
     }
 
     /**
-     * Read a characteristic
+     * Read a characteristic (Bug 5: queued)
      */
     @SuppressLint("MissingPermission")
     public void readCharacteristic(String deviceId, String serviceUuid, String characteristicUuid, ReadCallback callback) {
@@ -313,16 +313,27 @@ public class UniBlePlugin {
         String key = deviceId + "_" + characteristicUuid;
         readCallbacks.put(key, callback);
 
-        if (!gatt.readCharacteristic(characteristic)) {
+        GattQueue queue = gattQueues.get(deviceId);
+        if (queue == null) {
             readCallbacks.remove(key);
-            callback.onError("Failed to read characteristic");
+            callback.onError("Device not connected");
+            return;
         }
+
+        queue.enqueue(() -> {
+            if (!gatt.readCharacteristic(characteristic)) {
+                readCallbacks.remove(key);
+                queue.complete();
+                mainHandler.post(() -> callback.onError("Failed to read characteristic"));
+            }
+        });
     }
 
     /**
-     * Write to a characteristic
+     * Write to a characteristic (Bug 4: API 33+ path, Bug 5: queued)
      */
     @SuppressLint("MissingPermission")
+    @SuppressWarnings("deprecation")
     public void writeCharacteristic(String deviceId, String serviceUuid, String characteristicUuid, byte[] data, boolean withResponse, WriteCallback callback) {
         BluetoothGatt gatt = connectedGatts.get(deviceId);
         if (gatt == null) {
@@ -339,21 +350,39 @@ public class UniBlePlugin {
         String key = deviceId + "_" + characteristicUuid;
         writeCallbacks.put(key, callback);
 
-        characteristic.setValue(data);
-        characteristic.setWriteType(withResponse ?
+        int writeType = withResponse ?
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT :
-                BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+                BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
 
-        if (!gatt.writeCharacteristic(characteristic)) {
+        GattQueue queue = gattQueues.get(deviceId);
+        if (queue == null) {
             writeCallbacks.remove(key);
-            callback.onError("Failed to write characteristic");
+            callback.onError("Device not connected");
+            return;
         }
+
+        queue.enqueue(() -> {
+            boolean started;
+            if (Build.VERSION.SDK_INT >= 33) {
+                started = gatt.writeCharacteristic(characteristic, data, writeType) == 0;
+            } else {
+                characteristic.setValue(data);
+                characteristic.setWriteType(writeType);
+                started = gatt.writeCharacteristic(characteristic);
+            }
+            if (!started) {
+                writeCallbacks.remove(key);
+                queue.complete();
+                mainHandler.post(() -> callback.onError("Failed to write characteristic"));
+            }
+        });
     }
 
     /**
-     * Subscribe to a characteristic
+     * Subscribe to a characteristic (Bug 3: deferred callback, Bug 4: API 33+, Bug 5: queued)
      */
     @SuppressLint("MissingPermission")
+    @SuppressWarnings("deprecation")
     public void subscribeCharacteristic(String deviceId, String serviceUuid, String characteristicUuid, NotifyCallback notifyCallback, SubscribeResultCallback resultCallback) {
         BluetoothGatt gatt = connectedGatts.get(deviceId);
         if (gatt == null) {
@@ -377,22 +406,50 @@ public class UniBlePlugin {
         }
 
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CCCD_UUID);
-        if (descriptor != null) {
-            int properties = characteristic.getProperties();
-            byte[] value = (properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 ?
-                    BluetoothGattDescriptor.ENABLE_INDICATION_VALUE :
-                    BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
-            descriptor.setValue(value);
-            gatt.writeDescriptor(descriptor);
+        if (descriptor == null) {
+            // No CCCD descriptor; local notification set, done immediately
+            resultCallback.onSuccess();
+            return;
         }
 
-        resultCallback.onSuccess();
+        // Bug 3: store result callback, defer onSuccess to onDescriptorWrite
+        subscribeResultCallbacks.put(key, resultCallback);
+
+        int properties = characteristic.getProperties();
+        byte[] value = (properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 ?
+                BluetoothGattDescriptor.ENABLE_INDICATION_VALUE :
+                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+
+        GattQueue queue = gattQueues.get(deviceId);
+        if (queue == null) {
+            subscribeResultCallbacks.remove(key);
+            notifyCallbacks.remove(key);
+            resultCallback.onError("Device not connected");
+            return;
+        }
+
+        queue.enqueue(() -> {
+            boolean started;
+            if (Build.VERSION.SDK_INT >= 33) {
+                started = gatt.writeDescriptor(descriptor, value) == 0;
+            } else {
+                descriptor.setValue(value);
+                started = gatt.writeDescriptor(descriptor);
+            }
+            if (!started) {
+                subscribeResultCallbacks.remove(key);
+                notifyCallbacks.remove(key);
+                queue.complete();
+                mainHandler.post(() -> resultCallback.onError("Failed to write CCCD descriptor"));
+            }
+        });
     }
 
     /**
-     * Unsubscribe from a characteristic
+     * Unsubscribe from a characteristic (Bug 3: deferred callback, Bug 4: API 33+, Bug 5: queued)
      */
     @SuppressLint("MissingPermission")
+    @SuppressWarnings("deprecation")
     public void unsubscribeCharacteristic(String deviceId, String serviceUuid, String characteristicUuid, SubscribeResultCallback resultCallback) {
         BluetoothGatt gatt = connectedGatts.get(deviceId);
         if (gatt == null) {
@@ -412,12 +469,34 @@ public class UniBlePlugin {
         gatt.setCharacteristicNotification(characteristic, false);
 
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CCCD_UUID);
-        if (descriptor != null) {
-            descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-            gatt.writeDescriptor(descriptor);
+        if (descriptor == null) {
+            resultCallback.onSuccess();
+            return;
         }
 
-        resultCallback.onSuccess();
+        subscribeResultCallbacks.put(key, resultCallback);
+
+        GattQueue queue = gattQueues.get(deviceId);
+        if (queue == null) {
+            subscribeResultCallbacks.remove(key);
+            resultCallback.onError("Device not connected");
+            return;
+        }
+
+        queue.enqueue(() -> {
+            boolean started;
+            if (Build.VERSION.SDK_INT >= 33) {
+                started = gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) == 0;
+            } else {
+                descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                started = gatt.writeDescriptor(descriptor);
+            }
+            if (!started) {
+                subscribeResultCallbacks.remove(key);
+                queue.complete();
+                mainHandler.post(() -> resultCallback.onError("Failed to write CCCD descriptor"));
+            }
+        });
     }
 
     private BluetoothGattCharacteristic findCharacteristic(BluetoothGatt gatt, String serviceUuid, String characteristicUuid) {
@@ -438,6 +517,59 @@ public class UniBlePlugin {
         }
         return null;
     }
+
+    /**
+     * Fail and remove all pending operation callbacks for a device on disconnect.
+     */
+    private void failPendingCallbacks(String deviceId) {
+        String prefix = deviceId + "_";
+        String err = "Device disconnected";
+
+        ServiceDiscoveryCallback sdCb = serviceDiscoveryCallbacks.remove(deviceId);
+        if (sdCb != null) {
+            mainHandler.post(() -> sdCb.onServiceDiscoveryFailed(err));
+        }
+
+        Iterator<Map.Entry<String, ReadCallback>> readIter = readCallbacks.entrySet().iterator();
+        while (readIter.hasNext()) {
+            Map.Entry<String, ReadCallback> entry = readIter.next();
+            if (entry.getKey().startsWith(prefix)) {
+                ReadCallback cb = entry.getValue();
+                readIter.remove();
+                mainHandler.post(() -> cb.onError(err));
+            }
+        }
+
+        Iterator<Map.Entry<String, WriteCallback>> writeIter = writeCallbacks.entrySet().iterator();
+        while (writeIter.hasNext()) {
+            Map.Entry<String, WriteCallback> entry = writeIter.next();
+            if (entry.getKey().startsWith(prefix)) {
+                WriteCallback cb = entry.getValue();
+                writeIter.remove();
+                mainHandler.post(() -> cb.onError(err));
+            }
+        }
+
+        Iterator<Map.Entry<String, SubscribeResultCallback>> subIter = subscribeResultCallbacks.entrySet().iterator();
+        while (subIter.hasNext()) {
+            Map.Entry<String, SubscribeResultCallback> entry = subIter.next();
+            if (entry.getKey().startsWith(prefix)) {
+                SubscribeResultCallback cb = entry.getValue();
+                subIter.remove();
+                mainHandler.post(() -> cb.onError(err));
+            }
+        }
+
+        Iterator<Map.Entry<String, NotifyCallback>> notifyIter = notifyCallbacks.entrySet().iterator();
+        while (notifyIter.hasNext()) {
+            Map.Entry<String, NotifyCallback> entry = notifyIter.next();
+            if (entry.getKey().startsWith(prefix)) {
+                notifyIter.remove();
+            }
+        }
+    }
+
+    // --- Scan callback ---
 
     private final ScanCallback scanCallback = new ScanCallback() {
         @SuppressLint("MissingPermission")
@@ -462,7 +594,10 @@ public class UniBlePlugin {
         }
     };
 
+    // --- GATT callback ---
+
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+
         @SuppressLint("MissingPermission")
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
@@ -470,87 +605,153 @@ public class UniBlePlugin {
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 connectedGatts.put(deviceId, gatt);
-                ConnectionCallback callback = connectionCallbacks.remove(deviceId);
-                if (callback != null) {
-                    mainHandler.post(callback::onConnected);
+                gattQueues.put(deviceId, new GattQueue());
+                ConnectionCallback cb = connectionCallbacks.remove(deviceId);
+                if (cb != null) {
+                    mainHandler.post(cb::onConnected);
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connectedGatts.remove(deviceId);
-                ConnectionCallback callback = connectionCallbacks.remove(deviceId);
-                if (callback != null) {
+                gattQueues.remove(deviceId);
+                failPendingCallbacks(deviceId);
+                gatt.close();
+
+                boolean wasPendingDisconnect = pendingDisconnects.remove(deviceId);
+                ConnectionCallback connCb = connectionCallbacks.remove(deviceId);
+
+                if (connCb != null) {
+                    // Disconnect during initial connection phase
                     if (status == BluetoothGatt.GATT_SUCCESS) {
-                        mainHandler.post(callback::onDisconnected);
+                        mainHandler.post(connCb::onDisconnected);
                     } else {
                         final String error = "Connection failed with status: " + status;
-                        mainHandler.post(() -> callback.onConnectionFailed(error));
+                        mainHandler.post(() -> connCb.onConnectionFailed(error));
+                    }
+                } else {
+                    // Post-connection disconnect (intentional or unexpected)
+                    final String error = (!wasPendingDisconnect && status != BluetoothGatt.GATT_SUCCESS)
+                            ? "Disconnected with status: " + status
+                            : null;
+                    if (UniBlePlugin.this.callback != null) {
+                        mainHandler.post(() -> UniBlePlugin.this.callback.onDeviceDisconnected(deviceId, error));
                     }
                 }
-                gatt.close();
             }
         }
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             String deviceId = gatt.getDevice().getAddress();
-            ServiceDiscoveryCallback callback = serviceDiscoveryCallbacks.remove(deviceId);
+            GattQueue queue = gattQueues.get(deviceId);
+            if (queue != null) queue.complete();
 
-            if (callback == null) return;
+            ServiceDiscoveryCallback cb = serviceDiscoveryCallbacks.remove(deviceId);
+            if (cb == null) return;
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 List<BluetoothGattService> services = gatt.getServices();
                 BluetoothGattService[] serviceArray = services.toArray(new BluetoothGattService[0]);
-                mainHandler.post(() -> callback.onServicesDiscovered(serviceArray));
+                mainHandler.post(() -> cb.onServicesDiscovered(serviceArray));
             } else {
                 final String error = "Service discovery failed with status: " + status;
-                mainHandler.post(() -> callback.onServiceDiscoveryFailed(error));
+                mainHandler.post(() -> cb.onServiceDiscoveryFailed(error));
             }
         }
 
+        // Pre-API 33 callback
+        @SuppressWarnings("deprecation")
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            String deviceId = gatt.getDevice().getAddress();
-            String charUuid = characteristic.getUuid().toString();
-            String key = deviceId + "_" + charUuid;
+            handleCharacteristicRead(gatt, characteristic.getUuid().toString(), characteristic.getValue(), status);
+        }
 
-            ReadCallback callback = readCallbacks.remove(key);
-            if (callback == null) return;
+        // API 33+ callback
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+            handleCharacteristicRead(gatt, characteristic.getUuid().toString(), value, status);
+        }
+
+        private void handleCharacteristicRead(BluetoothGatt gatt, String charUuid, byte[] value, int status) {
+            String deviceId = gatt.getDevice().getAddress();
+            GattQueue queue = gattQueues.get(deviceId);
+            if (queue != null) queue.complete();
+
+            String key = deviceId + "_" + charUuid;
+            ReadCallback cb = readCallbacks.remove(key);
+            if (cb == null) return;
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                byte[] value = characteristic.getValue();
-                mainHandler.post(() -> callback.onSuccess(value));
+                mainHandler.post(() -> cb.onSuccess(value));
             } else {
                 final String error = "Read failed with status: " + status;
-                mainHandler.post(() -> callback.onError(error));
+                mainHandler.post(() -> cb.onError(error));
             }
         }
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             String deviceId = gatt.getDevice().getAddress();
+            GattQueue queue = gattQueues.get(deviceId);
+            if (queue != null) queue.complete();
+
             String charUuid = characteristic.getUuid().toString();
             String key = deviceId + "_" + charUuid;
 
-            WriteCallback callback = writeCallbacks.remove(key);
-            if (callback == null) return;
+            WriteCallback cb = writeCallbacks.remove(key);
+            if (cb == null) return;
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                mainHandler.post(callback::onSuccess);
+                mainHandler.post(cb::onSuccess);
             } else {
                 final String error = "Write failed with status: " + status;
-                mainHandler.post(() -> callback.onError(error));
+                mainHandler.post(() -> cb.onError(error));
             }
         }
 
+        // Pre-API 33 callback
+        @SuppressWarnings("deprecation")
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            handleCharacteristicChanged(gatt, characteristic.getUuid().toString(), characteristic.getValue());
+        }
+
+        // API 33+ callback
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value) {
+            handleCharacteristicChanged(gatt, characteristic.getUuid().toString(), value);
+        }
+
+        private void handleCharacteristicChanged(BluetoothGatt gatt, String charUuid, byte[] value) {
             String deviceId = gatt.getDevice().getAddress();
+            String key = deviceId + "_" + charUuid;
+
+            NotifyCallback cb = notifyCallbacks.get(key);
+            if (cb != null) {
+                mainHandler.post(() -> cb.onNotify(value));
+            }
+        }
+
+        // Bug 3: descriptor write callback for subscribe/unsubscribe completion
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            String deviceId = gatt.getDevice().getAddress();
+            GattQueue queue = gattQueues.get(deviceId);
+            if (queue != null) queue.complete();
+
+            BluetoothGattCharacteristic characteristic = descriptor.getCharacteristic();
+            if (characteristic == null) return;
+
             String charUuid = characteristic.getUuid().toString();
             String key = deviceId + "_" + charUuid;
 
-            NotifyCallback callback = notifyCallbacks.get(key);
-            if (callback != null) {
-                byte[] value = characteristic.getValue();
-                mainHandler.post(() -> callback.onNotify(value));
+            SubscribeResultCallback cb = subscribeResultCallbacks.remove(key);
+            if (cb == null) return;
+
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                mainHandler.post(cb::onSuccess);
+            } else {
+                final String error = "Descriptor write failed with status: " + status;
+                mainHandler.post(() -> cb.onError(error));
             }
         }
     };
