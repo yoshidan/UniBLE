@@ -40,6 +40,7 @@ static const int PROP_INDICATE = 32;
 static UniBleManager* g_sharedInstance = nil;
 
 @implementation UniBleManager {
+    @public
     dispatch_queue_t _syncQueue;
 }
 
@@ -67,7 +68,7 @@ static UniBleManager* g_sharedInstance = nil;
     self.globalDisconnectCallback = disconnectCallback;
 
     if (!self.centralManager) {
-        self.centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil];
+        self.centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:_syncQueue];
     }
 }
 
@@ -332,8 +333,7 @@ static UniBleManager* g_sharedInstance = nil;
 
     NSLog(@"[UniBLE Native] Calling state callback with state: %d", state);
     if (self.stateChangedCallback) {
-        // Call directly - delegate methods are already on main queue (we passed nil for queue in init)
-        // C# side handles thread safety with MainThreadDispatcher
+        // Call directly - C# side handles thread safety with MainThreadDispatcher
         self.stateChangedCallback(state);
     }
     NSLog(@"[UniBLE Native] State callback done");
@@ -366,28 +366,21 @@ static UniBleManager* g_sharedInstance = nil;
         serviceUuidsJson = [NSString stringWithFormat:@"[%@]", [uuidStrings componentsJoinedByString:@","]];
     }
 
-    // Use sync queue to prevent race conditions
-    dispatch_sync(_syncQueue, ^{
-        if (!self.peripherals[deviceId]) {
-            self.peripherals[deviceId] = peripheral;
-            peripheral.delegate = self;
+    // Already on _syncQueue (CBCentralManager delegate queue), no dispatch needed
+    if (!self.peripherals[deviceId]) {
+        self.peripherals[deviceId] = peripheral;
+        peripheral.delegate = self;
 
-            if (self.deviceDiscoveredCallback) {
-                DeviceDiscoveredCallback callback = self.deviceDiscoveredCallback;
-                NSString* name = peripheral.name ?: @"Unknown";
-                // Copy strings to ensure they remain valid
-                const char* deviceIdCStr = strdup([deviceId UTF8String]);
-                const char* nameCStr = strdup([name UTF8String]);
-                const char* serviceUuidsCStr = serviceUuidsJson ? strdup([serviceUuidsJson UTF8String]) : NULL;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    callback(deviceIdCStr, nameCStr, serviceUuidsCStr);
-                    free((void*)deviceIdCStr);
-                    free((void*)nameCStr);
-                    if (serviceUuidsCStr) free((void*)serviceUuidsCStr);
-                });
-            }
+        if (self.deviceDiscoveredCallback) {
+            // Call C# callback directly - C# copies string data immediately via Marshal.PtrToStringAnsi,
+            // and handles thread safety via MainThreadDispatcher.Enqueue()
+            self.deviceDiscoveredCallback(
+                [deviceId UTF8String],
+                [(peripheral.name ?: @"Unknown") UTF8String],
+                serviceUuidsJson ? [serviceUuidsJson UTF8String] : NULL
+            );
         }
-    });
+    }
 }
 
 - (void)centralManager:(CBCentralManager*)central didConnectPeripheral:(CBPeripheral*)peripheral {
@@ -638,14 +631,11 @@ void UniBle_StartScan(const char* serviceUuidsJson) {
             for (NSString* part in parts) {
                 NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
                 trimmed = [trimmed stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
-                NSLog(@"[UniBLE Native] Parsing UUID: '%@'", trimmed);
                 if (trimmed.length > 0) {
                     CBUUID* uuid = [CBUUID UUIDWithString:trimmed];
                     if (uuid) {
                         [mutableUuids addObject:uuid];
                         NSLog(@"[UniBLE Native] Added UUID: %@", uuid);
-                    } else {
-                        NSLog(@"[UniBLE Native] Failed to create CBUUID from: %@", trimmed);
                     }
                 }
             }
@@ -656,40 +646,60 @@ void UniBle_StartScan(const char* serviceUuidsJson) {
     }
 
     NSLog(@"[UniBLE Native] Starting scan with %lu service UUIDs", (unsigned long)(uuids ? uuids.count : 0));
-    [[UniBleManager shared] startScanWithServiceUuids:uuids];
-    NSLog(@"[UniBLE Native] Scan started");
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager startScanWithServiceUuids:uuids];
+    });
 }
 
 void UniBle_StopScan(void) {
-    [[UniBleManager shared] stopScan];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager stopScan];
+    });
 }
 
 void UniBle_Connect(const char* deviceId, ConnectionCallback callback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
-    [[UniBleManager shared] connectPeripheral:deviceIdStr callback:callback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager connectPeripheral:deviceIdStr callback:callback];
+    });
 }
 
 void UniBle_Disconnect(const char* deviceId, DisconnectCallback callback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
-    [[UniBleManager shared] disconnectPeripheral:deviceIdStr callback:callback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager disconnectPeripheral:deviceIdStr callback:callback];
+    });
 }
 
 void UniBle_DiscoverServices(const char* deviceId, ServiceDiscoveryCallback callback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
-    [[UniBleManager shared] discoverServicesForPeripheral:deviceIdStr callback:callback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager discoverServicesForPeripheral:deviceIdStr callback:callback];
+    });
 }
 
 void UniBle_DiscoverCharacteristics(const char* deviceId, const char* serviceUuid, CharacteristicDiscoveryCallback callback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
     NSString* serviceUuidStr = [NSString stringWithUTF8String:serviceUuid];
-    [[UniBleManager shared] discoverCharacteristicsForPeripheral:deviceIdStr serviceUuid:serviceUuidStr callback:callback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager discoverCharacteristicsForPeripheral:deviceIdStr serviceUuid:serviceUuidStr callback:callback];
+    });
 }
 
 void UniBle_ReadCharacteristic(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, ReadCallback callback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
     NSString* serviceUuidStr = [NSString stringWithUTF8String:serviceUuid];
     NSString* characteristicUuidStr = [NSString stringWithUTF8String:characteristicUuid];
-    [[UniBleManager shared] readCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr callback:callback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager readCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr callback:callback];
+    });
 }
 
 void UniBle_WriteCharacteristic(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, const void* data, int dataLength, bool withResponse, WriteCallback callback) {
@@ -697,21 +707,30 @@ void UniBle_WriteCharacteristic(const char* deviceId, const char* serviceUuid, c
     NSString* serviceUuidStr = [NSString stringWithUTF8String:serviceUuid];
     NSString* characteristicUuidStr = [NSString stringWithUTF8String:characteristicUuid];
     NSData* nsData = [NSData dataWithBytes:data length:dataLength];
-    [[UniBleManager shared] writeCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr data:nsData withResponse:withResponse callback:callback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager writeCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr data:nsData withResponse:withResponse callback:callback];
+    });
 }
 
 void UniBle_Subscribe(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, NotifyCallback notifyCallback, SubscribeCallback resultCallback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
     NSString* serviceUuidStr = [NSString stringWithUTF8String:serviceUuid];
     NSString* characteristicUuidStr = [NSString stringWithUTF8String:characteristicUuid];
-    [[UniBleManager shared] subscribeToCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr notifyCallback:notifyCallback resultCallback:resultCallback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager subscribeToCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr notifyCallback:notifyCallback resultCallback:resultCallback];
+    });
 }
 
 void UniBle_Unsubscribe(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, SubscribeCallback resultCallback) {
     NSString* deviceIdStr = [NSString stringWithUTF8String:deviceId];
     NSString* serviceUuidStr = [NSString stringWithUTF8String:serviceUuid];
     NSString* characteristicUuidStr = [NSString stringWithUTF8String:characteristicUuid];
-    [[UniBleManager shared] unsubscribeFromCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr callback:resultCallback];
+    UniBleManager* manager = [UniBleManager shared];
+    dispatch_async(manager->_syncQueue, ^{
+        [manager unsubscribeFromCharacteristicForPeripheral:deviceIdStr serviceUuid:serviceUuidStr characteristicUuid:characteristicUuidStr callback:resultCallback];
+    });
 }
 
 }
