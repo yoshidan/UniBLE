@@ -22,7 +22,10 @@ namespace UniBLE.Samples.Editor
             var canvasGo = new GameObject("Canvas");
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGo.AddComponent<CanvasScaler>();
+            var canvasScaler = canvasGo.AddComponent<CanvasScaler>();
+            canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            canvasScaler.referenceResolution = new Vector2(1080, 1920);
+            canvasScaler.matchWidthOrHeight = 0.5f;
             canvasGo.AddComponent<GraphicRaycaster>();
 
             // Create EventSystem
@@ -40,7 +43,7 @@ namespace UniBLE.Samples.Editor
             var titleGo = CreateUIElement("Title", panelGo.transform);
             var titleText = titleGo.AddComponent<Text>();
             titleText.text = "BLE Scanner Sample";
-            titleText.fontSize = 32;
+            titleText.fontSize = 48;
             titleText.alignment = TextAnchor.MiddleCenter;
             titleText.color = Color.white;
             titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -48,14 +51,14 @@ namespace UniBLE.Samples.Editor
             titleRect.anchorMin = new Vector2(0, 1);
             titleRect.anchorMax = new Vector2(1, 1);
             titleRect.pivot = new Vector2(0.5f, 1);
-            titleRect.anchoredPosition = new Vector2(0, -20);
-            titleRect.sizeDelta = new Vector2(0, 50);
+            titleRect.anchoredPosition = new Vector2(0, -30);
+            titleRect.sizeDelta = new Vector2(0, 80);
 
             // Create Status Text
             var statusGo = CreateUIElement("StatusText", panelGo.transform);
             var statusText = statusGo.AddComponent<Text>();
             statusText.text = "Initializing...";
-            statusText.fontSize = 18;
+            statusText.fontSize = 30;
             statusText.alignment = TextAnchor.MiddleCenter;
             statusText.color = Color.yellow;
             statusText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -63,8 +66,8 @@ namespace UniBLE.Samples.Editor
             statusRect.anchorMin = new Vector2(0, 1);
             statusRect.anchorMax = new Vector2(1, 1);
             statusRect.pivot = new Vector2(0.5f, 1);
-            statusRect.anchoredPosition = new Vector2(0, -80);
-            statusRect.sizeDelta = new Vector2(0, 30);
+            statusRect.anchoredPosition = new Vector2(0, -120);
+            statusRect.sizeDelta = new Vector2(0, 50);
 
             // Create Button Container
             var buttonContainerGo = CreateUIElement("ButtonContainer", panelGo.transform);
@@ -77,18 +80,18 @@ namespace UniBLE.Samples.Editor
             buttonContainerRect.anchorMin = new Vector2(0.5f, 1);
             buttonContainerRect.anchorMax = new Vector2(0.5f, 1);
             buttonContainerRect.pivot = new Vector2(0.5f, 1);
-            buttonContainerRect.anchoredPosition = new Vector2(0, -120);
-            buttonContainerRect.sizeDelta = new Vector2(300, 50);
+            buttonContainerRect.anchoredPosition = new Vector2(0, -180);
+            buttonContainerRect.sizeDelta = new Vector2(500, 90);
 
             // Create Scan Button
             var scanButtonGo = CreateButton("ScanButton", buttonContainerGo.transform, "Scan");
             var scanButtonRect = scanButtonGo.GetComponent<RectTransform>();
-            scanButtonRect.sizeDelta = new Vector2(120, 40);
+            scanButtonRect.sizeDelta = new Vector2(220, 80);
 
             // Create Stop Button
             var stopButtonGo = CreateButton("StopButton", buttonContainerGo.transform, "Stop");
             var stopButtonRect = stopButtonGo.GetComponent<RectTransform>();
-            stopButtonRect.sizeDelta = new Vector2(120, 40);
+            stopButtonRect.sizeDelta = new Vector2(220, 80);
 
             // Create Scroll View for device list
             var scrollViewGo = CreateUIElement("DeviceListScrollView", panelGo.transform);
@@ -100,7 +103,7 @@ namespace UniBLE.Samples.Editor
             scrollRectTransform.anchorMax = new Vector2(1, 1);
             scrollRectTransform.pivot = new Vector2(0.5f, 0.5f);
             scrollRectTransform.offsetMin = new Vector2(20, 20);
-            scrollRectTransform.offsetMax = new Vector2(-20, -180);
+            scrollRectTransform.offsetMax = new Vector2(-20, -290);
 
             // Create Viewport
             var viewportGo = CreateUIElement("Viewport", scrollViewGo.transform);
@@ -114,7 +117,7 @@ namespace UniBLE.Samples.Editor
             // Create Content
             var contentGo = CreateUIElement("Content", viewportGo.transform);
             var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
-            vlg.spacing = 5;
+            vlg.spacing = 10;
             vlg.padding = new RectOffset(10, 10, 10, 10);
             vlg.childControlWidth = true;
             vlg.childControlHeight = false;
@@ -200,7 +203,7 @@ namespace UniBLE.Samples.Editor
             var textGo = CreateUIElement("Text", buttonGo.transform);
             var textComp = textGo.AddComponent<Text>();
             textComp.text = text;
-            textComp.fontSize = 18;
+            textComp.fontSize = 32;
             textComp.alignment = TextAnchor.MiddleCenter;
             textComp.color = Color.white;
             textComp.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -213,14 +216,14 @@ namespace UniBLE.Samples.Editor
         {
             var itemGo = new GameObject("DeviceListItem");
             var itemRect = itemGo.AddComponent<RectTransform>();
-            itemRect.sizeDelta = new Vector2(0, 60);
+            itemRect.sizeDelta = new Vector2(0, 110);
 
             var itemImage = itemGo.AddComponent<Image>();
             itemImage.color = new Color(0.25f, 0.25f, 0.25f, 1f);
 
             var hlg = itemGo.AddComponent<HorizontalLayoutGroup>();
-            hlg.padding = new RectOffset(10, 10, 5, 5);
-            hlg.spacing = 10;
+            hlg.padding = new RectOffset(20, 20, 10, 10);
+            hlg.spacing = 15;
             hlg.childAlignment = TextAnchor.MiddleLeft;
             hlg.childControlWidth = true;
             hlg.childControlHeight = true;
@@ -239,7 +242,7 @@ namespace UniBLE.Samples.Editor
             var nameGo = CreateUIElement("DeviceName", infoGo.transform);
             var nameText = nameGo.AddComponent<Text>();
             nameText.text = "Device Name";
-            nameText.fontSize = 18;
+            nameText.fontSize = 32;
             nameText.fontStyle = FontStyle.Bold;
             nameText.color = Color.white;
             nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -248,15 +251,15 @@ namespace UniBLE.Samples.Editor
             var idGo = CreateUIElement("DeviceId", infoGo.transform);
             var idText = idGo.AddComponent<Text>();
             idText.text = "00:00:00:00:00:00";
-            idText.fontSize = 12;
+            idText.fontSize = 24;
             idText.color = Color.gray;
             idText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             // Select Button
             var selectButtonGo = CreateButton("SelectButton", itemGo.transform, "Connect");
             var selectButtonLe = selectButtonGo.AddComponent<LayoutElement>();
-            selectButtonLe.minWidth = 80;
-            selectButtonLe.preferredWidth = 80;
+            selectButtonLe.minWidth = 180;
+            selectButtonLe.preferredWidth = 180;
 
             // Add DeviceListItem component
             var deviceListItem = itemGo.AddComponent<DeviceListItem>();

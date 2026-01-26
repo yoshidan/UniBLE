@@ -169,15 +169,15 @@ namespace UniBLE.Samples
 
                     // Add layout element for sizing
                     var layoutElement = buttonGo.AddComponent<LayoutElement>();
-                    layoutElement.minHeight = 80;
-                    layoutElement.preferredHeight = 80;
+                    layoutElement.minHeight = 120;
+                    layoutElement.preferredHeight = 120;
 
                     // Create child text object
                     var textGo = new GameObject("Text");
                     textGo.transform.SetParent(buttonGo.transform, false);
                     var text = textGo.AddComponent<Text>();
                     text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                    text.fontSize = 30;
+                    text.fontSize = 34;
                     text.color = Color.black;
                     text.alignment = TextAnchor.MiddleLeft;
                     text.text = $"  {device.Name ?? "Unknown"}\n  {device.Id}";
@@ -343,13 +343,13 @@ namespace UniBLE.Samples
             _characteristicButtons.Add(containerGo);
 
             var containerLayout = containerGo.AddComponent<HorizontalLayoutGroup>();
-            containerLayout.spacing = 5;
+            containerLayout.spacing = 10;
             containerLayout.childForceExpandWidth = false;
             containerLayout.childForceExpandHeight = true;
-            containerLayout.padding = new RectOffset(5, 5, 2, 2);
+            containerLayout.padding = new RectOffset(15, 15, 8, 8);
 
             var containerLayoutElement = containerGo.AddComponent<LayoutElement>();
-            containerLayoutElement.minHeight = 60;
+            containerLayoutElement.minHeight = 100;
 
             var containerImage = containerGo.AddComponent<Image>();
             containerImage.color = new Color(0.95f, 0.95f, 0.95f, 1f);
@@ -359,12 +359,11 @@ namespace UniBLE.Samples
             labelGo.transform.SetParent(containerGo.transform, false);
             var labelText = labelGo.AddComponent<Text>();
             labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            labelText.fontSize = 30;
+            labelText.fontSize = 28;
             labelText.color = Color.black;
             labelText.text = characteristic.Uuid;
             var labelLayout = labelGo.AddComponent<LayoutElement>();
-            labelLayout.minWidth = 450;
-            labelLayout.preferredWidth = 450;
+            labelLayout.flexibleWidth = 1;
 
             // Read button
             if (hasRead)
@@ -408,14 +407,14 @@ namespace UniBLE.Samples
             }
 
             var layoutElement = buttonGo.AddComponent<LayoutElement>();
-            layoutElement.minWidth = 100;
-            layoutElement.preferredWidth = 100;
+            layoutElement.minWidth = 150;
+            layoutElement.preferredWidth = 150;
 
             var textGo = new GameObject("Text");
             textGo.transform.SetParent(buttonGo.transform, false);
             var text = textGo.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 30;
+            text.fontSize = 32;
             text.color = Color.black;
             text.alignment = TextAnchor.MiddleCenter;
             text.text = label;
@@ -546,13 +545,13 @@ namespace UniBLE.Samples
             _characteristicButtons.Add(containerGo);
 
             var containerLayout = containerGo.AddComponent<HorizontalLayoutGroup>();
-            containerLayout.spacing = 10;
+            containerLayout.spacing = 15;
             containerLayout.childForceExpandWidth = false;
             containerLayout.childForceExpandHeight = true;
-            containerLayout.padding = new RectOffset(5, 5, 5, 5);
+            containerLayout.padding = new RectOffset(15, 15, 10, 10);
 
             var containerLayoutElement = containerGo.AddComponent<LayoutElement>();
-            containerLayoutElement.minHeight = 70;
+            containerLayoutElement.minHeight = 110;
 
             var containerImage = containerGo.AddComponent<Image>();
             containerImage.color = new Color(0.85f, 0.85f, 0.85f, 1f);
@@ -562,12 +561,11 @@ namespace UniBLE.Samples
             labelGo.transform.SetParent(containerGo.transform, false);
             var labelText = labelGo.AddComponent<Text>();
             labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            labelText.fontSize = 30;
+            labelText.fontSize = 32;
             labelText.color = Color.black;
             labelText.text = $"Connected: {_connectedDevice.Name}";
             var labelLayout = labelGo.AddComponent<LayoutElement>();
-            labelLayout.minWidth = 400;
-            labelLayout.preferredWidth = 400;
+            labelLayout.flexibleWidth = 1;
 
             // Disconnect button
             CreateActionButton(containerGo.transform, "Disconnect", new Color(0.9f, 0.5f, 0.5f),

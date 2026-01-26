@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Android;
 
 namespace UniBLE.Platforms.Android
 {
@@ -14,6 +15,7 @@ namespace UniBLE.Platforms.Android
     {
         private readonly AndroidJavaObject _plugin;
         private readonly Dictionary<string, AndroidBleDevice> _discoveredDevices = new Dictionary<string, AndroidBleDevice>();
+        private readonly Dictionary<string, AndroidBleDevice> _activeDevices = new Dictionary<string, AndroidBleDevice>();
         private Action<IBleDevice> _onDeviceDiscovered;
         private BleAdapterState _state = BleAdapterState.Unknown;
         private bool _isScanning;
@@ -42,6 +44,7 @@ namespace UniBLE.Platforms.Android
             return Task.FromResult(result);
         }
 
+        // Bug 1: Use Unity's Permission API instead of Java's ActivityCompat
         public Task<bool> RequestPermissionAsync(CancellationToken cancellationToken = default)
         {
             var tcs = new TaskCompletionSource<bool>();
@@ -50,10 +53,54 @@ namespace UniBLE.Platforms.Android
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                _plugin.Call("requestPermissions", new PermissionCallback(granted =>
+                var permissions = new List<string>();
+
+                int apiLevel = GetApiLevel();
+                if (apiLevel >= 31) // Android 12 (S)
                 {
-                    tcs.TrySetResult(granted);
-                }));
+                    if (!Permission.HasUserAuthorizedPermission("android.permission.BLUETOOTH_SCAN"))
+                        permissions.Add("android.permission.BLUETOOTH_SCAN");
+                    if (!Permission.HasUserAuthorizedPermission("android.permission.BLUETOOTH_CONNECT"))
+                        permissions.Add("android.permission.BLUETOOTH_CONNECT");
+                }
+                else
+                {
+                    if (!Permission.HasUserAuthorizedPermission("android.permission.ACCESS_FINE_LOCATION"))
+                        permissions.Add("android.permission.ACCESS_FINE_LOCATION");
+                }
+
+                if (permissions.Count == 0)
+                {
+                    tcs.TrySetResult(true);
+                    return;
+                }
+
+                var callbacks = new PermissionCallbacks();
+                int remaining = permissions.Count;
+                bool allGranted = true;
+
+                callbacks.PermissionGranted += (perm) =>
+                {
+                    remaining--;
+                    if (remaining <= 0)
+                        tcs.TrySetResult(allGranted);
+                };
+                callbacks.PermissionDenied += (perm) =>
+                {
+                    allGranted = false;
+                    remaining--;
+                    if (remaining <= 0)
+                        tcs.TrySetResult(false);
+                };
+                callbacks.PermissionDeniedAndDontAskAgain += (perm) =>
+                {
+                    allGranted = false;
+                    remaining--;
+                    if (remaining <= 0)
+                        tcs.TrySetResult(false);
+                };
+
+                Permission.RequestUserPermissions(permissions.ToArray(), callbacks);
             });
 
             return tcs.Task;
@@ -117,14 +164,21 @@ namespace UniBLE.Platforms.Android
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                var androidDevice = _plugin.Call<AndroidJavaObject>("getDevice", deviceId);
-                if (androidDevice == null)
+                if (_activeDevices.TryGetValue(deviceId, out var existingDevice))
                 {
-                    tcs.TrySetException(new BleException(BleErrorCode.ConnectionFailed, $"Device not found: {deviceId}"));
+                    tcs.TrySetResult(existingDevice);
                     return;
                 }
 
-                var device = new AndroidBleDevice(deviceId, androidDevice.Call<string>("getName"), _plugin);
+                var androidDevice = _plugin.Call<AndroidJavaObject>("getDevice", deviceId);
+                string name = "";
+                if (androidDevice != null)
+                {
+                    name = androidDevice.Call<string>("getName") ?? "";
+                }
+
+                var device = new AndroidBleDevice(deviceId, name, _plugin);
+                _activeDevices[deviceId] = device;
                 tcs.TrySetResult(device);
             });
 
@@ -135,7 +189,11 @@ namespace UniBLE.Platforms.Android
         {
             if (!_discoveredDevices.TryGetValue(deviceId, out var device))
             {
-                device = new AndroidBleDevice(deviceId, deviceName, _plugin);
+                if (!_activeDevices.TryGetValue(deviceId, out device))
+                {
+                    device = new AndroidBleDevice(deviceId, deviceName, _plugin);
+                    _activeDevices[deviceId] = device;
+                }
                 _discoveredDevices[deviceId] = device;
                 _onDeviceDiscovered?.Invoke(device);
             }
@@ -153,6 +211,23 @@ namespace UniBLE.Platforms.Android
                 _ => BleAdapterState.Unknown
             };
             OnStateChanged?.Invoke(_state);
+        }
+
+        // Bug 2: handle post-connection disconnect notifications from Java
+        internal void OnDeviceDisconnected(string deviceId, string error)
+        {
+            if (_activeDevices.TryGetValue(deviceId, out var device))
+            {
+                device.OnDisconnected(error);
+            }
+        }
+
+        private static int GetApiLevel()
+        {
+            using (var version = new AndroidJavaClass("android.os.Build$VERSION"))
+            {
+                return version.GetStatic<int>("SDK_INT");
+            }
         }
 
         /// <summary>
@@ -184,26 +259,13 @@ namespace UniBLE.Platforms.Android
                     _adapter.OnAdapterStateChanged(state);
                 });
             }
-        }
 
-        /// <summary>
-        /// Callback class for permission request
-        /// </summary>
-        private class PermissionCallback : AndroidJavaProxy
-        {
-            private readonly Action<bool> _callback;
-
-            public PermissionCallback(Action<bool> callback) : base("com.unible.PermissionCallback")
-            {
-                _callback = callback;
-            }
-
-            // Called from Java
-            public void onResult(bool granted)
+            // Called from Java (Bug 2: disconnect notification)
+            public void onDeviceDisconnected(string deviceId, string error)
             {
                 MainThreadDispatcher.Enqueue(() =>
                 {
-                    _callback?.Invoke(granted);
+                    _adapter.OnDeviceDisconnected(deviceId, error);
                 });
             }
         }
