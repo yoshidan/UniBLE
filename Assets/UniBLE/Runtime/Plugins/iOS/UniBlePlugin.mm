@@ -612,39 +612,31 @@ void UniBle_StartScan(const char* serviceUuidsJson) {
     NSArray<CBUUID*>* uuids = nil;
 
     if (serviceUuidsJson) {
-        @try {
-            NSString* json = [NSString stringWithUTF8String:serviceUuidsJson];
-            NSLog(@"[UniBLE Native] Parsing JSON: %@", json);
-            // Parse simple JSON array: ["uuid1", "uuid2"]
-            json = [json stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-            if ([json hasPrefix:@"["] && [json hasSuffix:@"]"]) {
-                json = [json substringWithRange:NSMakeRange(1, json.length - 2)];
-                NSArray* parts = [json componentsSeparatedByString:@","];
-                NSMutableArray<CBUUID*>* mutableUuids = [NSMutableArray array];
-                for (NSString* part in parts) {
-                    NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                    trimmed = [trimmed stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
-                    NSLog(@"[UniBLE Native] Parsing UUID: '%@'", trimmed);
-                    if (trimmed.length > 0) {
-                        @try {
-                            CBUUID* uuid = [CBUUID UUIDWithString:trimmed];
-                            if (uuid) {
-                                [mutableUuids addObject:uuid];
-                                NSLog(@"[UniBLE Native] Added UUID: %@", uuid);
-                            } else {
-                                NSLog(@"[UniBLE Native] Failed to create CBUUID from: %@", trimmed);
-                            }
-                        } @catch (NSException* e) {
-                            NSLog(@"[UniBLE Native] Exception creating CBUUID: %@", e);
-                        }
+        NSString* json = [NSString stringWithUTF8String:serviceUuidsJson];
+        NSLog(@"[UniBLE Native] Parsing JSON: %@", json);
+        // Parse simple JSON array: ["uuid1", "uuid2"]
+        json = [json stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if ([json hasPrefix:@"["] && [json hasSuffix:@"]"]) {
+            json = [json substringWithRange:NSMakeRange(1, json.length - 2)];
+            NSArray* parts = [json componentsSeparatedByString:@","];
+            NSMutableArray<CBUUID*>* mutableUuids = [NSMutableArray array];
+            for (NSString* part in parts) {
+                NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                trimmed = [trimmed stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
+                NSLog(@"[UniBLE Native] Parsing UUID: '%@'", trimmed);
+                if (trimmed.length > 0) {
+                    CBUUID* uuid = [CBUUID UUIDWithString:trimmed];
+                    if (uuid) {
+                        [mutableUuids addObject:uuid];
+                        NSLog(@"[UniBLE Native] Added UUID: %@", uuid);
+                    } else {
+                        NSLog(@"[UniBLE Native] Failed to create CBUUID from: %@", trimmed);
                     }
                 }
-                if (mutableUuids.count > 0) {
-                    uuids = mutableUuids;
-                }
             }
-        } @catch (NSException* e) {
-            NSLog(@"[UniBLE Native] Exception parsing service UUIDs: %@", e);
+            if (mutableUuids.count > 0) {
+                uuids = mutableUuids;
+            }
         }
     }
 
