@@ -32,6 +32,12 @@ namespace UniBLE.Platforms.Android
 
         public Task<byte[]> ReadAsync(CancellationToken cancellationToken = default)
         {
+            if (!Properties.HasFlag(BleCharacteristicProperties.Read))
+            {
+                throw new BleException(BleErrorCode.NotSupported, "Characteristic does not support reading");
+            }
+
+            _readTcs?.TrySetCanceled();
             _readTcs = new TaskCompletionSource<byte[]>();
             cancellationToken.Register(() => _readTcs.TrySetCanceled());
 
@@ -45,6 +51,13 @@ namespace UniBLE.Platforms.Android
 
         public Task WriteAsync(byte[] data, bool withResponse = true, CancellationToken cancellationToken = default)
         {
+            var requiredProperty = withResponse ? BleCharacteristicProperties.Write : BleCharacteristicProperties.WriteWithoutResponse;
+            if (!Properties.HasFlag(requiredProperty))
+            {
+                throw new BleException(BleErrorCode.NotSupported, $"Characteristic does not support {(withResponse ? "write" : "write without response")}");
+            }
+
+            _writeTcs?.TrySetCanceled();
             _writeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _writeTcs.TrySetCanceled());
 
@@ -58,6 +71,11 @@ namespace UniBLE.Platforms.Android
 
         public Task SubscribeAsync(Action<byte[]> onNotify, CancellationToken cancellationToken = default)
         {
+            if (!Properties.HasFlag(BleCharacteristicProperties.Notify) && !Properties.HasFlag(BleCharacteristicProperties.Indicate))
+            {
+                throw new BleException(BleErrorCode.NotSupported, "Characteristic does not support notifications");
+            }
+
             _notifyCallback = onNotify;
 
             var tcs = new TaskCompletionSource<bool>();

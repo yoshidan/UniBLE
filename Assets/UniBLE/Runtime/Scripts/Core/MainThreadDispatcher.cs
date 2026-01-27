@@ -43,11 +43,20 @@ namespace UniBLE
 
         private void Update()
         {
+            Action[] actions = null;
             lock (_lock)
             {
-                while (_actionQueue.Count > 0)
+                if (_actionQueue.Count > 0)
                 {
-                    var action = _actionQueue.Dequeue();
+                    actions = _actionQueue.ToArray();
+                    _actionQueue.Clear();
+                }
+            }
+
+            if (actions != null)
+            {
+                foreach (var action in actions)
+                {
                     try
                     {
                         action?.Invoke();

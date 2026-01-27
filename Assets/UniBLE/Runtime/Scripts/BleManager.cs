@@ -11,6 +11,17 @@ namespace UniBLE
     {
         private static IBleAdapter _adapter;
         private static readonly object _lock = new object();
+        private static bool _debugLogging;
+
+        /// <summary>
+        /// Enable or disable debug logging for the BLE library.
+        /// When enabled, detailed logs are output to the console and native log (NSLog on Apple).
+        /// </summary>
+        public static bool DebugLogging
+        {
+            get => _debugLogging;
+            set => _debugLogging = value;
+        }
 
         /// <summary>
         /// Get the singleton instance of the BLE adapter
@@ -45,7 +56,9 @@ namespace UniBLE
 #elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return new Platforms.Apple.AppleBleAdapter();
 #elif UNITY_STANDALONE_WIN && !UNITY_EDITOR
-            return new Platforms.Windows.WindowsBleAdapter();
+            throw new BleException(
+                BleErrorCode.NotSupported,
+                "BLE is not yet supported on Windows platform");
 #else
             throw new BleException(
                 BleErrorCode.NotSupported,

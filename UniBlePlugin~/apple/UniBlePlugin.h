@@ -10,14 +10,15 @@ typedef void (*DeviceDiscoveredCallback)(const char* deviceId, const char* devic
 typedef void (*ConnectionCallback)(const char* deviceId, bool success, const char* error);
 typedef void (*ServiceDiscoveryCallback)(const char* deviceId, const char* servicesJson, const char* error);
 typedef void (*CharacteristicDiscoveryCallback)(const char* deviceId, const char* serviceUuid, const char* characteristicsJson, const char* error);
-typedef void (*ReadCallback)(const char* deviceId, const char* characteristicUuid, const void* data, int dataLength, const char* error);
-typedef void (*WriteCallback)(const char* deviceId, const char* characteristicUuid, const char* error);
-typedef void (*NotifyCallback)(const char* deviceId, const char* characteristicUuid, const void* data, int dataLength);
-typedef void (*SubscribeCallback)(const char* deviceId, const char* characteristicUuid, const char* error);
+typedef void (*ReadCallback)(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, const void* data, int dataLength, const char* error);
+typedef void (*WriteCallback)(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, const char* error);
+typedef void (*NotifyCallback)(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, const void* data, int dataLength);
+typedef void (*SubscribeCallback)(const char* deviceId, const char* serviceUuid, const char* characteristicUuid, const char* error);
 typedef void (*DisconnectCallback)(const char* deviceId, const char* error);
 
 // Exported functions
 extern "C" {
+    void UniBle_SetDebugEnabled(bool enabled);
     void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback, DisconnectCallback disconnectCallback);
     bool UniBle_IsAvailable(void);
     void UniBle_StartScan(const char* serviceUuidsJson);

@@ -55,8 +55,26 @@ namespace UniBLE.Platforms.Apple
             return $"{deviceId}:{serviceUuid}";
         }
 
+        internal static void RemoveForDevice(string deviceId)
+        {
+            var keysToRemove = new List<string>();
+            var prefix = deviceId + ":";
+            foreach (var key in _services.Keys)
+            {
+                if (key.StartsWith(prefix))
+                {
+                    keysToRemove.Add(key);
+                }
+            }
+            foreach (var key in keysToRemove)
+            {
+                _services.Remove(key);
+            }
+        }
+
         public Task<IReadOnlyList<IBleCharacteristic>> GetCharacteristicsAsync(CancellationToken cancellationToken = default)
         {
+            _discoverCharacteristicsTcs?.TrySetCanceled();
             _discoverCharacteristicsTcs = new TaskCompletionSource<IReadOnlyList<IBleCharacteristic>>();
             cancellationToken.Register(() => _discoverCharacteristicsTcs.TrySetCanceled());
 
