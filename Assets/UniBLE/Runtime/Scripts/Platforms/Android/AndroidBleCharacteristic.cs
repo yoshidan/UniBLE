@@ -207,10 +207,13 @@ namespace UniBLE.Platforms.Android
                 _characteristic = characteristic;
             }
 
-            // Called from Java
+            // Called from Java on the Android main thread (via mainHandler.post).
+            // Invoked directly to ensure delivery even when Unity is paused (background).
+            // Note: The callback may fire on a non-Unity thread. If the user needs Unity
+            // API access, they should use MainThreadDispatcher.Enqueue() in their handler.
             public void onNotify(byte[] data)
             {
-                MainThreadDispatcher.Enqueue(() => _characteristic.OnNotify(data));
+                _characteristic.OnNotify(data);
             }
         }
 

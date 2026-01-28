@@ -216,6 +216,12 @@ namespace UniBLE.Platforms.Apple
             });
         }
 
+        // Invoked directly (bypassing MainThreadDispatcher) to ensure delivery even when
+        // Unity is paused (background). The native data is copied to a managed byte array
+        // immediately so it remains valid after the native call returns.
+        // Note: The callback fires on the CoreBluetooth dispatch queue thread, NOT the Unity
+        // main thread. If the user needs Unity API access, they should use
+        // MainThreadDispatcher.Enqueue() in their handler.
         [MonoPInvokeCallback(typeof(NotifyCallback))]
         private static void OnNativeNotify(string deviceId, string serviceUuid, string characteristicUuid, IntPtr data, int dataLength)
         {
@@ -226,12 +232,9 @@ namespace UniBLE.Platforms.Apple
                 Marshal.Copy(data, dataArray, 0, dataLength);
             }
 
-            MainThreadDispatcher.Enqueue(() =>
-            {
-                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
-                if (!_characteristics.TryGetValue(key, out var characteristic)) return;
-                characteristic._onNotify?.Invoke(dataArray ?? new byte[0]);
-            });
+            var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+            if (!_characteristics.TryGetValue(key, out var characteristic)) return;
+            characteristic._onNotify?.Invoke(dataArray ?? new byte[0]);
         }
 
         [MonoPInvokeCallback(typeof(SubscribeCallback))]

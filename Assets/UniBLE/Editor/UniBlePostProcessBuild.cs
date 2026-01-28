@@ -23,7 +23,7 @@ namespace UniBLE.Editor
 
             proj.WriteToFile(projPath);
 
-            // Add Bluetooth usage description to Info.plist
+            // Add Bluetooth usage description and background mode to Info.plist
             var plistPath = Path.Combine(path, "Info.plist");
             var plist = new PlistDocument();
             plist.ReadFromFile(plistPath);
@@ -32,6 +32,26 @@ namespace UniBLE.Editor
             if (rootDict["NSBluetoothAlwaysUsageDescription"] == null)
             {
                 rootDict.SetString("NSBluetoothAlwaysUsageDescription", "This app uses Bluetooth to communicate with BLE devices.");
+            }
+
+            // Add bluetooth-central background mode for receiving BLE notifications in background
+            var bgModes = rootDict["UIBackgroundModes"]?.AsArray();
+            if (bgModes == null)
+            {
+                bgModes = rootDict.CreateArray("UIBackgroundModes");
+            }
+            bool hasBtCentral = false;
+            foreach (var val in bgModes.values)
+            {
+                if (val.AsString() == "bluetooth-central")
+                {
+                    hasBtCentral = true;
+                    break;
+                }
+            }
+            if (!hasBtCentral)
+            {
+                bgModes.AddString("bluetooth-central");
             }
 
             plist.WriteToFile(plistPath);

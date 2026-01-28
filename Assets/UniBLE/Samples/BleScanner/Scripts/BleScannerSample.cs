@@ -497,9 +497,11 @@ namespace UniBLE.Samples
                     UpdateStatus($"Subscribing to {characteristic.Uuid}...");
                     await characteristic.SubscribeAsync(data =>
                     {
+                        // This callback may fire on a non-Unity thread (background delivery).
+                        // Debug.Log is thread-safe, but UI updates must be dispatched to the main thread.
                         var hex = BitConverter.ToString(data).Replace("-", " ");
                         Debug.Log($"[BleScanner] Notify from {characteristic.Uuid}: [{hex}]");
-                        UpdateStatus($"Notify: {hex}");
+                        MainThreadDispatcher.Enqueue(() => UpdateStatus($"Notify: {hex}"));
                     });
                     _subscribedCharacteristics.Add(characteristic.Uuid);
                     Debug.Log($"[BleScanner] Subscribed to {characteristic.Uuid}");
