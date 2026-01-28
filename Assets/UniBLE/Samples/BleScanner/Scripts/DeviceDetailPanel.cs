@@ -145,56 +145,71 @@ namespace UniBLE.Samples
             bool hasNotify = props.HasFlag(BleCharacteristicProperties.Notify) ||
                              props.HasFlag(BleCharacteristicProperties.Indicate);
 
-            // Row container
+            // Row container - horizontal: [UUID info (left)] [buttons (right)]
             var rowGo = new GameObject($"Char_{c.Uuid}");
             rowGo.transform.SetParent(characteristicListContent, false);
             _rows.Add(rowGo);
 
             var rowImage = rowGo.AddComponent<Image>();
-            rowImage.color = new Color(0.95f, 0.95f, 0.95f, 1f);
+            rowImage.color = new Color(0.25f, 0.25f, 0.25f, 1f);
 
-            var rowLayout = rowGo.AddComponent<VerticalLayoutGroup>();
+            var rowLayout = rowGo.AddComponent<HorizontalLayoutGroup>();
             rowLayout.padding = new RectOffset(15, 15, 10, 10);
-            rowLayout.spacing = 8;
+            rowLayout.spacing = 10;
+            rowLayout.childAlignment = TextAnchor.MiddleLeft;
             rowLayout.childControlWidth = true;
-            rowLayout.childControlHeight = false;
-            rowLayout.childForceExpandWidth = true;
-            rowLayout.childForceExpandHeight = false;
+            rowLayout.childControlHeight = true;
+            rowLayout.childForceExpandWidth = false;
+            rowLayout.childForceExpandHeight = true;
 
             var rowLe = rowGo.AddComponent<LayoutElement>();
-            rowLe.minHeight = 130;
+            rowLe.minHeight = 110;
+            rowLe.preferredHeight = 110;
+
+            // Info column (flexible width, pushes buttons to right)
+            var infoGo = new GameObject("Info");
+            infoGo.transform.SetParent(rowGo.transform, false);
+            infoGo.AddComponent<RectTransform>();
+            var infoVlg = infoGo.AddComponent<VerticalLayoutGroup>();
+            infoVlg.childControlWidth = true;
+            infoVlg.childControlHeight = true;
+            infoVlg.childForceExpandWidth = true;
+            infoVlg.childForceExpandHeight = false;
+            var infoLe = infoGo.AddComponent<LayoutElement>();
+            infoLe.flexibleWidth = 1;
 
             // UUID label
             var labelGo = new GameObject("Label");
-            labelGo.transform.SetParent(rowGo.transform, false);
+            labelGo.transform.SetParent(infoGo.transform, false);
+            labelGo.AddComponent<RectTransform>();
             var labelText = labelGo.AddComponent<Text>();
             labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            labelText.fontSize = 26;
-            labelText.color = new Color(0.3f, 0.3f, 0.3f);
+            labelText.fontSize = 22;
+            labelText.color = Color.white;
             labelText.text = c.Uuid;
-            var labelLe = labelGo.AddComponent<LayoutElement>();
-            labelLe.minHeight = 34;
 
-            // Button row
-            var btnRowGo = new GameObject("Buttons");
-            btnRowGo.transform.SetParent(rowGo.transform, false);
-            btnRowGo.AddComponent<RectTransform>();
-            var btnRowLayout = btnRowGo.AddComponent<HorizontalLayoutGroup>();
-            btnRowLayout.spacing = 10;
-            btnRowLayout.childControlWidth = false;
-            btnRowLayout.childControlHeight = true;
-            btnRowLayout.childForceExpandWidth = false;
-            btnRowLayout.childForceExpandHeight = false;
-            var btnRowLe = btnRowGo.AddComponent<LayoutElement>();
-            btnRowLe.minHeight = 70;
+            // Properties label
+            var propsGo = new GameObject("Props");
+            propsGo.transform.SetParent(infoGo.transform, false);
+            propsGo.AddComponent<RectTransform>();
+            var propsText = propsGo.AddComponent<Text>();
+            propsText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            propsText.fontSize = 20;
+            propsText.color = Color.gray;
+            var propsList = new List<string>();
+            if (hasRead) propsList.Add("Read");
+            if (hasWrite) propsList.Add("Write");
+            if (hasNotify) propsList.Add("Notify");
+            propsText.text = string.Join(" / ", propsList);
 
+            // Buttons on the right
             if (hasRead)
-                CreateSmallButton(btnRowGo.transform, "Read", new Color(0.6f, 0.8f, 0.6f), () => OnRead(c));
+                CreateSmallButton(rowGo.transform, "Read", new Color(0.4f, 0.7f, 0.4f), () => OnRead(c));
             if (hasWrite)
-                CreateSmallButton(btnRowGo.transform, "Write", new Color(0.8f, 0.8f, 0.6f), () => OnWrite(c));
+                CreateSmallButton(rowGo.transform, "Write", new Color(0.7f, 0.7f, 0.4f), () => OnWrite(c));
             if (hasNotify)
             {
-                var notifyBtnGo = CreateSmallButton(btnRowGo.transform, "Notify", new Color(0.6f, 0.7f, 0.9f), null);
+                var notifyBtnGo = CreateSmallButton(rowGo.transform, "Notify", new Color(0.4f, 0.5f, 0.8f), null);
                 var notifyBtn = notifyBtnGo.GetComponent<Button>();
                 notifyBtn.onClick.AddListener(() => OnNotify(c, notifyBtnGo));
             }
@@ -204,25 +219,27 @@ namespace UniBLE.Samples
         {
             var go = new GameObject(label);
             go.transform.SetParent(parent, false);
+            go.AddComponent<RectTransform>();
 
             var image = go.AddComponent<Image>();
             image.color = color;
 
             var btn = go.AddComponent<Button>();
+            btn.targetGraphic = image;
             if (onClick != null)
                 btn.onClick.AddListener(() => onClick());
 
             var le = go.AddComponent<LayoutElement>();
-            le.minWidth = 150;
-            le.preferredWidth = 150;
+            le.minWidth = 130;
+            le.preferredWidth = 130;
             le.minHeight = 70;
 
             var textGo = new GameObject("Text");
             textGo.transform.SetParent(go.transform, false);
             var text = textGo.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 30;
-            text.color = Color.black;
+            text.fontSize = 28;
+            text.color = Color.white;
             text.alignment = TextAnchor.MiddleCenter;
             text.text = label;
             var textRect = textGo.GetComponent<RectTransform>();
@@ -317,12 +334,12 @@ namespace UniBLE.Samples
             var text = btnGo.GetComponentInChildren<Text>();
             if (subscribed)
             {
-                image.color = new Color(0.9f, 0.6f, 0.6f);
+                image.color = new Color(0.8f, 0.4f, 0.4f);
                 text.text = "Unsub";
             }
             else
             {
-                image.color = new Color(0.6f, 0.7f, 0.9f);
+                image.color = new Color(0.4f, 0.5f, 0.8f);
                 text.text = "Notify";
             }
         }
