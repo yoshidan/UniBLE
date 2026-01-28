@@ -297,7 +297,7 @@ namespace UniBLE.Samples.Editor
             idText.color = Color.gray;
             idText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            var selectBtnGo = CreateButton("SelectButton", itemGo.transform, "Connect", new Color(0.3f, 0.3f, 0.8f), new Vector2(180, 80));
+            var selectBtnGo = CreateButton("SelectButton", itemGo.transform, "View", new Color(0.3f, 0.3f, 0.8f), new Vector2(180, 80));
             var selectBtnLe = selectBtnGo.AddComponent<LayoutElement>();
             selectBtnLe.minWidth = 180;
             selectBtnLe.preferredWidth = 180;
