@@ -33,88 +33,204 @@ namespace UniBLE.Samples.Editor
             eventSystemGo.AddComponent<EventSystem>();
             eventSystemGo.AddComponent<StandaloneInputModule>();
 
-            // Create Panel (background)
-            var panelGo = CreateUIElement("Panel", canvasGo.transform);
-            var panelImage = panelGo.AddComponent<Image>();
-            panelImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-            SetStretchAll(panelGo.GetComponent<RectTransform>());
+            // ========== Scan Panel ==========
+            var scanPanelGo = CreatePanel("ScanPanel", canvasGo.transform, new Color(0.15f, 0.15f, 0.15f, 1f));
 
-            // Create Title
-            var titleGo = CreateUIElement("Title", panelGo.transform);
-            var titleText = titleGo.AddComponent<Text>();
-            titleText.text = "BLE Scanner Sample";
-            titleText.fontSize = 48;
-            titleText.alignment = TextAnchor.MiddleCenter;
-            titleText.color = Color.white;
-            titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            var titleRect = titleGo.GetComponent<RectTransform>();
-            titleRect.anchorMin = new Vector2(0, 1);
-            titleRect.anchorMax = new Vector2(1, 1);
-            titleRect.pivot = new Vector2(0.5f, 1);
-            titleRect.anchoredPosition = new Vector2(0, -30);
-            titleRect.sizeDelta = new Vector2(0, 80);
+            // Title
+            CreateLabel("Title", scanPanelGo.transform, "BLE Scanner", 48, Color.white, TextAnchor.MiddleCenter,
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(0, 80));
 
-            // Create Status Text
-            var statusGo = CreateUIElement("StatusText", panelGo.transform);
-            var statusText = statusGo.AddComponent<Text>();
-            statusText.text = "Initializing...";
-            statusText.fontSize = 30;
-            statusText.alignment = TextAnchor.MiddleCenter;
-            statusText.color = Color.yellow;
-            statusText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            var statusRect = statusGo.GetComponent<RectTransform>();
-            statusRect.anchorMin = new Vector2(0, 1);
-            statusRect.anchorMax = new Vector2(1, 1);
-            statusRect.pivot = new Vector2(0.5f, 1);
-            statusRect.anchoredPosition = new Vector2(0, -120);
-            statusRect.sizeDelta = new Vector2(0, 50);
+            // Status Text
+            var statusGo = CreateLabel("StatusText", scanPanelGo.transform, "Initializing...", 30, Color.yellow, TextAnchor.MiddleCenter,
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -120), new Vector2(0, 50));
+            var statusText = statusGo.GetComponent<Text>();
 
-            // Create Button Container
-            var buttonContainerGo = CreateUIElement("ButtonContainer", panelGo.transform);
-            var hlg = buttonContainerGo.AddComponent<HorizontalLayoutGroup>();
+            // Button container
+            var btnContainerGo = CreateUIElement("ButtonContainer", scanPanelGo.transform);
+            var hlg = btnContainerGo.AddComponent<HorizontalLayoutGroup>();
             hlg.spacing = 20;
             hlg.childAlignment = TextAnchor.MiddleCenter;
             hlg.childControlWidth = false;
             hlg.childControlHeight = false;
-            var buttonContainerRect = buttonContainerGo.GetComponent<RectTransform>();
-            buttonContainerRect.anchorMin = new Vector2(0.5f, 1);
-            buttonContainerRect.anchorMax = new Vector2(0.5f, 1);
-            buttonContainerRect.pivot = new Vector2(0.5f, 1);
-            buttonContainerRect.anchoredPosition = new Vector2(0, -180);
-            buttonContainerRect.sizeDelta = new Vector2(500, 90);
+            var btnContainerRect = btnContainerGo.GetComponent<RectTransform>();
+            btnContainerRect.anchorMin = new Vector2(0.5f, 1);
+            btnContainerRect.anchorMax = new Vector2(0.5f, 1);
+            btnContainerRect.pivot = new Vector2(0.5f, 1);
+            btnContainerRect.anchoredPosition = new Vector2(0, -180);
+            btnContainerRect.sizeDelta = new Vector2(500, 90);
 
-            // Create Scan Button
-            var scanButtonGo = CreateButton("ScanButton", buttonContainerGo.transform, "Scan");
-            var scanButtonRect = scanButtonGo.GetComponent<RectTransform>();
-            scanButtonRect.sizeDelta = new Vector2(220, 80);
+            var scanButtonGo = CreateButton("ScanButton", btnContainerGo.transform, "Scan", new Color(0.3f, 0.3f, 0.8f), new Vector2(220, 80));
+            var stopButtonGo = CreateButton("StopButton", btnContainerGo.transform, "Stop", new Color(0.3f, 0.3f, 0.8f), new Vector2(220, 80));
 
-            // Create Stop Button
-            var stopButtonGo = CreateButton("StopButton", buttonContainerGo.transform, "Stop");
-            var stopButtonRect = stopButtonGo.GetComponent<RectTransform>();
-            stopButtonRect.sizeDelta = new Vector2(220, 80);
+            // Scroll view for device list
+            var (scrollViewGo, contentGo) = CreateScrollView("DeviceList", scanPanelGo.transform,
+                new Vector2(20, 20), new Vector2(-20, -290));
 
-            // Create Scroll View for device list
-            var scrollViewGo = CreateUIElement("DeviceListScrollView", panelGo.transform);
+            // ========== Device Detail Panel ==========
+            var detailPanelGo = CreatePanel("DeviceDetailPanel", canvasGo.transform, new Color(0.15f, 0.15f, 0.15f, 1f));
+
+            // Back button (top-left)
+            var backBtnGo = CreateButton("BackButton", detailPanelGo.transform, "< Back", new Color(0.35f, 0.35f, 0.35f), new Vector2(200, 70));
+            var backBtnRect = backBtnGo.GetComponent<RectTransform>();
+            backBtnRect.anchorMin = new Vector2(0, 1);
+            backBtnRect.anchorMax = new Vector2(0, 1);
+            backBtnRect.pivot = new Vector2(0, 1);
+            backBtnRect.anchoredPosition = new Vector2(20, -20);
+
+            // Device name
+            var detailNameGo = CreateLabel("DeviceName", detailPanelGo.transform, "Device Name", 40, Color.white, TextAnchor.MiddleCenter,
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(0, 90));
+            var detailNameText = detailNameGo.GetComponent<Text>();
+            detailNameText.supportRichText = true;
+
+            // Detail status text
+            var detailStatusGo = CreateLabel("StatusText", detailPanelGo.transform, "", 28, Color.yellow, TextAnchor.MiddleCenter,
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -200), new Vector2(0, 40));
+            var detailStatusText = detailStatusGo.GetComponent<Text>();
+
+            // Connect/Disconnect button (centered)
+            var connectBtnGo = CreateButton("ConnectButton", detailPanelGo.transform, "Connect", new Color(0.3f, 0.7f, 0.3f), new Vector2(300, 80));
+            var connectBtnRect = connectBtnGo.GetComponent<RectTransform>();
+            connectBtnRect.anchorMin = new Vector2(0.5f, 1);
+            connectBtnRect.anchorMax = new Vector2(0.5f, 1);
+            connectBtnRect.pivot = new Vector2(0.5f, 1);
+            connectBtnRect.anchoredPosition = new Vector2(0, -250);
+            var connectBtnText = connectBtnGo.GetComponentInChildren<Text>();
+
+            // Characteristic list scroll view
+            var (_, detailContentGo) = CreateScrollView("CharacteristicList", detailPanelGo.transform,
+                new Vector2(20, 20), new Vector2(-20, -350));
+
+            // ========== Wire up DeviceDetailPanel component ==========
+            var detailPanel = detailPanelGo.AddComponent<DeviceDetailPanel>();
+            var detailSo = new SerializedObject(detailPanel);
+            detailSo.FindProperty("deviceNameText").objectReferenceValue = detailNameText;
+            detailSo.FindProperty("statusText").objectReferenceValue = detailStatusText;
+            detailSo.FindProperty("backButton").objectReferenceValue = backBtnGo.GetComponent<Button>();
+            detailSo.FindProperty("connectButton").objectReferenceValue = connectBtnGo.GetComponent<Button>();
+            detailSo.FindProperty("connectButtonText").objectReferenceValue = connectBtnText;
+            detailSo.FindProperty("characteristicListContent").objectReferenceValue = detailContentGo.GetComponent<RectTransform>();
+            detailSo.ApplyModifiedProperties();
+
+            // ========== Device List Item Prefab ==========
+            var prefabGo = CreateDeviceItemPrefab();
+
+            // ========== Wire up BleScannerSample ==========
+            var scannerGo = new GameObject("BleScanner");
+            var scanner = scannerGo.AddComponent<BleScannerSample>();
+
+            var so = new SerializedObject(scanner);
+            so.FindProperty("scanButton").objectReferenceValue = scanButtonGo.GetComponent<Button>();
+            so.FindProperty("stopButton").objectReferenceValue = stopButtonGo.GetComponent<Button>();
+            so.FindProperty("statusText").objectReferenceValue = statusText;
+            so.FindProperty("deviceListContent").objectReferenceValue = contentGo.GetComponent<RectTransform>();
+            so.FindProperty("deviceItemPrefab").objectReferenceValue = prefabGo;
+            so.FindProperty("scanPanel").objectReferenceValue = scanPanelGo;
+            so.FindProperty("deviceDetailPanel").objectReferenceValue = detailPanel;
+            so.ApplyModifiedProperties();
+
+            // ========== Save ==========
+            var scenePath = "Assets/UniBLE/Samples~/BleScanner/BleScannerSample.unity";
+            EnsureDirectory(scenePath);
+            EditorSceneManager.SaveScene(scene, scenePath);
+
+            var prefabPath = "Assets/UniBLE/Samples~/BleScanner/Prefabs/DeviceListItem.prefab";
+            EnsureDirectory(prefabPath);
+            PrefabUtility.SaveAsPrefabAsset(prefabGo, prefabPath);
+            Object.DestroyImmediate(prefabGo);
+
+            // Re-assign saved prefab
+            var savedPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            so = new SerializedObject(scanner);
+            so.FindProperty("deviceItemPrefab").objectReferenceValue = savedPrefab;
+            so.ApplyModifiedProperties();
+
+            EditorSceneManager.SaveScene(scene, scenePath);
+
+            Debug.Log("BLE Scanner Sample Scene created at: " + scenePath);
+            EditorUtility.DisplayDialog("Success", "BLE Scanner Sample Scene created!\n\nPath: " + scenePath, "OK");
+        }
+
+        // ---- Helpers ----
+
+        private static GameObject CreateUIElement(string name, Transform parent)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<RectTransform>();
+            return go;
+        }
+
+        private static GameObject CreatePanel(string name, Transform parent, Color bgColor)
+        {
+            var go = CreateUIElement(name, parent);
+            var image = go.AddComponent<Image>();
+            image.color = bgColor;
+            SetStretchAll(go.GetComponent<RectTransform>());
+            return go;
+        }
+
+        private static GameObject CreateLabel(string name, Transform parent, string text, int fontSize, Color color,
+            TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 pos, Vector2 size)
+        {
+            var go = CreateUIElement(name, parent);
+            var t = go.AddComponent<Text>();
+            t.text = text;
+            t.fontSize = fontSize;
+            t.alignment = alignment;
+            t.color = color;
+            t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = pivot;
+            rect.anchoredPosition = pos;
+            rect.sizeDelta = size;
+            return go;
+        }
+
+        private static GameObject CreateButton(string name, Transform parent, string text, Color color, Vector2 size)
+        {
+            var go = CreateUIElement(name, parent);
+            var image = go.AddComponent<Image>();
+            image.color = color;
+            var btn = go.AddComponent<Button>();
+            btn.targetGraphic = image;
+            go.GetComponent<RectTransform>().sizeDelta = size;
+
+            var textGo = CreateUIElement("Text", go.transform);
+            var t = textGo.AddComponent<Text>();
+            t.text = text;
+            t.fontSize = 32;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = Color.white;
+            t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            SetStretchAll(textGo.GetComponent<RectTransform>());
+
+            return go;
+        }
+
+        private static (GameObject scrollView, GameObject content) CreateScrollView(string name, Transform parent,
+            Vector2 offsetMin, Vector2 offsetMax)
+        {
+            var scrollViewGo = CreateUIElement(name + "ScrollView", parent);
             var scrollRect = scrollViewGo.AddComponent<ScrollRect>();
             var scrollImage = scrollViewGo.AddComponent<Image>();
             scrollImage.color = new Color(0.1f, 0.1f, 0.1f, 1f);
-            var scrollRectTransform = scrollViewGo.GetComponent<RectTransform>();
-            scrollRectTransform.anchorMin = new Vector2(0, 0);
-            scrollRectTransform.anchorMax = new Vector2(1, 1);
-            scrollRectTransform.pivot = new Vector2(0.5f, 0.5f);
-            scrollRectTransform.offsetMin = new Vector2(20, 20);
-            scrollRectTransform.offsetMax = new Vector2(-20, -290);
+            var svRect = scrollViewGo.GetComponent<RectTransform>();
+            svRect.anchorMin = Vector2.zero;
+            svRect.anchorMax = Vector2.one;
+            svRect.pivot = new Vector2(0.5f, 0.5f);
+            svRect.offsetMin = offsetMin;
+            svRect.offsetMax = offsetMax;
 
-            // Create Viewport
             var viewportGo = CreateUIElement("Viewport", scrollViewGo.transform);
             var viewportImage = viewportGo.AddComponent<Image>();
             viewportImage.color = Color.white;
-            var viewportMask = viewportGo.AddComponent<Mask>();
-            viewportMask.showMaskGraphic = false;
-            var viewportRect = viewportGo.GetComponent<RectTransform>();
-            SetStretchAll(viewportRect);
+            var mask = viewportGo.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+            SetStretchAll(viewportGo.GetComponent<RectTransform>());
 
-            // Create Content
             var contentGo = CreateUIElement("Content", viewportGo.transform);
             var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
             vlg.spacing = 10;
@@ -130,86 +246,14 @@ namespace UniBLE.Samples.Editor
             contentRect.anchorMax = new Vector2(1, 1);
             contentRect.pivot = new Vector2(0.5f, 1);
             contentRect.anchoredPosition = Vector2.zero;
-            contentRect.sizeDelta = new Vector2(0, 0);
+            contentRect.sizeDelta = Vector2.zero;
 
             scrollRect.content = contentRect;
-            scrollRect.viewport = viewportRect;
+            scrollRect.viewport = viewportGo.GetComponent<RectTransform>();
             scrollRect.vertical = true;
             scrollRect.horizontal = false;
 
-            // Create Device Item Prefab
-            var prefabGo = CreateDeviceItemPrefab();
-
-            // Create Scanner GameObject
-            var scannerGo = new GameObject("BleScanner");
-            var scanner = scannerGo.AddComponent<BleScannerSample>();
-
-            // Assign references using SerializedObject
-            var so = new SerializedObject(scanner);
-            so.FindProperty("scanButton").objectReferenceValue = scanButtonGo.GetComponent<Button>();
-            so.FindProperty("stopButton").objectReferenceValue = stopButtonGo.GetComponent<Button>();
-            so.FindProperty("statusText").objectReferenceValue = statusText;
-            so.FindProperty("deviceListContent").objectReferenceValue = contentRect;
-            so.FindProperty("deviceItemPrefab").objectReferenceValue = prefabGo;
-            so.ApplyModifiedProperties();
-
-            // Save scene
-            var scenePath = "Assets/UniBLE/Samples~/BleScanner/BleScannerSample.unity";
-            var directory = System.IO.Path.GetDirectoryName(scenePath);
-            if (!System.IO.Directory.Exists(directory))
-            {
-                System.IO.Directory.CreateDirectory(directory);
-            }
-            EditorSceneManager.SaveScene(scene, scenePath);
-
-            // Save prefab
-            var prefabPath = "Assets/UniBLE/Samples~/BleScanner/Prefabs/DeviceListItem.prefab";
-            var prefabDir = System.IO.Path.GetDirectoryName(prefabPath);
-            if (!System.IO.Directory.Exists(prefabDir))
-            {
-                System.IO.Directory.CreateDirectory(prefabDir);
-            }
-            PrefabUtility.SaveAsPrefabAsset(prefabGo, prefabPath);
-            Object.DestroyImmediate(prefabGo);
-
-            // Re-assign prefab reference
-            var savedPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-            so = new SerializedObject(scanner);
-            so.FindProperty("deviceItemPrefab").objectReferenceValue = savedPrefab;
-            so.ApplyModifiedProperties();
-
-            EditorSceneManager.SaveScene(scene, scenePath);
-
-            Debug.Log("BLE Scanner Sample Scene created at: " + scenePath);
-            EditorUtility.DisplayDialog("Success", "BLE Scanner Sample Scene created!\n\nPath: " + scenePath, "OK");
-        }
-
-        private static GameObject CreateUIElement(string name, Transform parent)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(parent, false);
-            go.AddComponent<RectTransform>();
-            return go;
-        }
-
-        private static GameObject CreateButton(string name, Transform parent, string text)
-        {
-            var buttonGo = CreateUIElement(name, parent);
-            var buttonImage = buttonGo.AddComponent<Image>();
-            buttonImage.color = new Color(0.3f, 0.3f, 0.8f, 1f);
-            var button = buttonGo.AddComponent<Button>();
-            button.targetGraphic = buttonImage;
-
-            var textGo = CreateUIElement("Text", buttonGo.transform);
-            var textComp = textGo.AddComponent<Text>();
-            textComp.text = text;
-            textComp.fontSize = 32;
-            textComp.alignment = TextAnchor.MiddleCenter;
-            textComp.color = Color.white;
-            textComp.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            SetStretchAll(textGo.GetComponent<RectTransform>());
-
-            return buttonGo;
+            return (scrollViewGo, contentGo);
         }
 
         private static GameObject CreateDeviceItemPrefab()
@@ -238,7 +282,6 @@ namespace UniBLE.Samples.Editor
             var infoLe = infoGo.AddComponent<LayoutElement>();
             infoLe.flexibleWidth = 1;
 
-            // Device Name
             var nameGo = CreateUIElement("DeviceName", infoGo.transform);
             var nameText = nameGo.AddComponent<Text>();
             nameText.text = "Device Name";
@@ -247,7 +290,6 @@ namespace UniBLE.Samples.Editor
             nameText.color = Color.white;
             nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            // Device ID
             var idGo = CreateUIElement("DeviceId", infoGo.transform);
             var idText = idGo.AddComponent<Text>();
             idText.text = "00:00:00:00:00:00";
@@ -255,18 +297,16 @@ namespace UniBLE.Samples.Editor
             idText.color = Color.gray;
             idText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            // Select Button
-            var selectButtonGo = CreateButton("SelectButton", itemGo.transform, "Connect");
-            var selectButtonLe = selectButtonGo.AddComponent<LayoutElement>();
-            selectButtonLe.minWidth = 180;
-            selectButtonLe.preferredWidth = 180;
+            var selectBtnGo = CreateButton("SelectButton", itemGo.transform, "Connect", new Color(0.3f, 0.3f, 0.8f), new Vector2(180, 80));
+            var selectBtnLe = selectBtnGo.AddComponent<LayoutElement>();
+            selectBtnLe.minWidth = 180;
+            selectBtnLe.preferredWidth = 180;
 
-            // Add DeviceListItem component
             var deviceListItem = itemGo.AddComponent<DeviceListItem>();
             var so = new SerializedObject(deviceListItem);
             so.FindProperty("deviceNameText").objectReferenceValue = nameText;
             so.FindProperty("deviceIdText").objectReferenceValue = idText;
-            so.FindProperty("selectButton").objectReferenceValue = selectButtonGo.GetComponent<Button>();
+            so.FindProperty("selectButton").objectReferenceValue = selectBtnGo.GetComponent<Button>();
             so.ApplyModifiedProperties();
 
             return itemGo;
@@ -278,6 +318,13 @@ namespace UniBLE.Samples.Editor
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
+        }
+
+        private static void EnsureDirectory(string filePath)
+        {
+            var dir = System.IO.Path.GetDirectoryName(filePath);
+            if (!System.IO.Directory.Exists(dir))
+                System.IO.Directory.CreateDirectory(dir);
         }
     }
 }
