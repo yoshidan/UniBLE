@@ -37,7 +37,7 @@ namespace UniBLE
         /// <param name="onDeviceDiscovered">Callback when a device is discovered</param>
         /// <param name="cancellationToken">Cancellation token</param>
         Task StartScanAsync(
-            IEnumerable<string> serviceUuids,
+            IEnumerable<BleUuid> serviceUuids,
             Action<IBleDevice> onDeviceDiscovered,
             CancellationToken cancellationToken = default);
 

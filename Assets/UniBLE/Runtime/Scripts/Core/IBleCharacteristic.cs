@@ -12,7 +12,7 @@ namespace UniBLE
         /// <summary>
         /// UUID of the characteristic
         /// </summary>
-        string Uuid { get; }
+        BleUuid Uuid { get; }
 
         /// <summary>
         /// Properties of the characteristic

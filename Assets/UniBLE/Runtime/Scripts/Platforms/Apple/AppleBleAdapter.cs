@@ -110,7 +110,7 @@ namespace UniBLE.Platforms.Apple
         }
 
         public Task StartScanAsync(
-            IEnumerable<string> serviceUuids,
+            IEnumerable<BleUuid> serviceUuids,
             Action<IBleDevice> onDeviceDiscovered,
             CancellationToken cancellationToken = default)
         {
@@ -126,10 +126,10 @@ namespace UniBLE.Platforms.Apple
             string uuidsJson = null;
             if (serviceUuids != null)
             {
-                var list = new List<string>(serviceUuids);
+                var list = new List<BleUuid>(serviceUuids);
                 if (list.Count > 0)
                 {
-                    uuidsJson = "[" + string.Join(",", list.ConvertAll(u => $"\"{u}\"")) + "]";
+                    uuidsJson = "[" + string.Join(",", list.ConvertAll(u => $"\"{u.ToString()}\"")) + "]";
                 }
             }
 

@@ -21,13 +21,13 @@ namespace UniBLE.Platforms.Apple
         private const string DllName = "UniBlePlugin";
 #endif
         private readonly string _deviceId;
-        private readonly string _serviceUuid;
+        private readonly BleUuid _serviceUuid;
         private TaskCompletionSource<byte[]> _readTcs;
         private TaskCompletionSource<bool> _writeTcs;
         private TaskCompletionSource<bool> _subscribeTcs;
         private TaskCompletionSource<bool> _unsubscribeTcs;
 
-        public string Uuid { get; }
+        public BleUuid Uuid { get; }
         public BleCharacteristicProperties Properties { get; }
         private Action<byte[]> _onNotify;
 
@@ -67,13 +67,13 @@ namespace UniBLE.Platforms.Apple
             _unsubscribeCallback = OnNativeUnsubscribeResult;
         }
 
-        internal AppleBleCharacteristic(string uuid, BleCharacteristicProperties properties, string deviceId, string serviceUuid)
+        internal AppleBleCharacteristic(BleUuid uuid, BleCharacteristicProperties properties, string deviceId, BleUuid serviceUuid)
         {
             Uuid = uuid;
             Properties = properties;
             _deviceId = deviceId;
             _serviceUuid = serviceUuid;
-            var key = GetKey(deviceId, serviceUuid, uuid);
+            var key = GetKey(deviceId, serviceUuid.ToFullString(), uuid.ToFullString());
             _characteristics[key] = this;
         }
 
@@ -112,7 +112,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_ReadCharacteristic(_deviceId, _serviceUuid, Uuid, _readCallback);
+                UniBle_ReadCharacteristic(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), _readCallback);
             });
 
             return _readTcs.Task;
@@ -132,7 +132,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_WriteCharacteristic(_deviceId, _serviceUuid, Uuid, data, data.Length, withResponse, _writeCallback);
+                UniBle_WriteCharacteristic(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), data, data.Length, withResponse, _writeCallback);
             });
 
             return _writeTcs.Task;
@@ -152,7 +152,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_Subscribe(_deviceId, _serviceUuid, Uuid, _notifyCallback, _subscribeCallback);
+                UniBle_Subscribe(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), _notifyCallback, _subscribeCallback);
             });
 
             return _subscribeTcs.Task;
@@ -167,7 +167,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_Unsubscribe(_deviceId, _serviceUuid, Uuid, _unsubscribeCallback);
+                UniBle_Unsubscribe(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), _unsubscribeCallback);
             });
 
             return _unsubscribeTcs.Task;
@@ -185,7 +185,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
@@ -203,7 +203,7 @@ namespace UniBLE.Platforms.Apple
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
@@ -232,7 +232,7 @@ namespace UniBLE.Platforms.Apple
                 Marshal.Copy(data, dataArray, 0, dataLength);
             }
 
-            var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+            var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
             if (!_characteristics.TryGetValue(key, out var characteristic)) return;
             characteristic._onNotify?.Invoke(dataArray ?? new byte[0]);
         }
@@ -242,7 +242,7 @@ namespace UniBLE.Platforms.Apple
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
@@ -260,7 +260,7 @@ namespace UniBLE.Platforms.Apple
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))

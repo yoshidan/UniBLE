@@ -107,7 +107,7 @@ namespace UniBLE.Platforms.Android
         }
 
         public Task StartScanAsync(
-            IEnumerable<string> serviceUuids,
+            IEnumerable<BleUuid> serviceUuids,
             Action<IBleDevice> onDeviceDiscovered,
             CancellationToken cancellationToken = default)
         {
@@ -123,8 +123,8 @@ namespace UniBLE.Platforms.Android
             string[] uuidArray = null;
             if (serviceUuids != null)
             {
-                var list = new List<string>(serviceUuids);
-                uuidArray = list.ToArray();
+                var list = new List<BleUuid>(serviceUuids);
+                uuidArray = list.ConvertAll(u => u.ToFullString()).ToArray();
             }
 
             MainThreadDispatcher.Enqueue(() =>

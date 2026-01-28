@@ -20,11 +20,11 @@ namespace UniBLE.Platforms.Apple
 #else
         private const string DllName = "UniBlePlugin";
 #endif
-        private readonly Dictionary<string, AppleBleCharacteristic> _characteristics = new Dictionary<string, AppleBleCharacteristic>();
+        private readonly Dictionary<BleUuid, AppleBleCharacteristic> _characteristics = new Dictionary<BleUuid, AppleBleCharacteristic>();
         private readonly string _deviceId;
         private TaskCompletionSource<IReadOnlyList<IBleCharacteristic>> _discoverCharacteristicsTcs;
 
-        public string Uuid { get; }
+        public BleUuid Uuid { get; }
 
         #region Native Methods
         [DllImport(DllName)]
@@ -42,11 +42,11 @@ namespace UniBLE.Platforms.Apple
             _characteristicDiscoveryCallback = OnNativeCharacteristicsDiscovered;
         }
 
-        internal AppleBleService(string uuid, string deviceId)
+        internal AppleBleService(BleUuid uuid, string deviceId)
         {
             Uuid = uuid;
             _deviceId = deviceId;
-            var key = GetKey(deviceId, uuid);
+            var key = GetKey(deviceId, uuid.ToFullString());
             _services[key] = this;
         }
 
@@ -80,18 +80,18 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_DiscoverCharacteristics(_deviceId, Uuid, _characteristicDiscoveryCallback);
+                UniBle_DiscoverCharacteristics(_deviceId, Uuid.ToString(), _characteristicDiscoveryCallback);
             });
 
             return _discoverCharacteristicsTcs.Task;
         }
 
-        public async Task<IBleCharacteristic> GetCharacteristicAsync(string uuid, CancellationToken cancellationToken = default)
+        public async Task<IBleCharacteristic> GetCharacteristicAsync(BleUuid uuid, CancellationToken cancellationToken = default)
         {
             var characteristics = await GetCharacteristicsAsync(cancellationToken);
             foreach (var characteristic in characteristics)
             {
-                if (characteristic.Uuid.Equals(uuid, StringComparison.OrdinalIgnoreCase))
+                if (characteristic.Uuid == uuid)
                 {
                     return characteristic;
                 }
@@ -104,7 +104,8 @@ namespace UniBLE.Platforms.Apple
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                var key = GetKey(deviceId, serviceUuid);
+                var svcUuid = new BleUuid(serviceUuid);
+                var key = GetKey(deviceId, svcUuid.ToFullString());
                 if (!_services.TryGetValue(key, out var service)) return;
 
                 if (!string.IsNullOrEmpty(error))
@@ -122,8 +123,9 @@ namespace UniBLE.Platforms.Apple
                     var items = ParseCharacteristicsJson(characteristicsJson);
                     foreach (var item in items)
                     {
-                        var characteristic = new AppleBleCharacteristic(item.uuid, item.properties, deviceId, serviceUuid);
-                        service._characteristics[item.uuid] = characteristic;
+                        var charUuid = new BleUuid(item.uuid);
+                        var characteristic = new AppleBleCharacteristic(charUuid, item.properties, deviceId, svcUuid);
+                        service._characteristics[charUuid] = characteristic;
                         result.Add(characteristic);
                     }
                 }

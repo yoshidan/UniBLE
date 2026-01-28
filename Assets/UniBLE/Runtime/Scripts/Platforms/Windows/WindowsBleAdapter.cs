@@ -26,7 +26,7 @@ namespace UniBLE.Platforms.Windows
         }
 
         public Task StartScanAsync(
-            IEnumerable<string> serviceUuids,
+            IEnumerable<BleUuid> serviceUuids,
             Action<IBleDevice> onDeviceDiscovered,
             CancellationToken cancellationToken = default)
         {
