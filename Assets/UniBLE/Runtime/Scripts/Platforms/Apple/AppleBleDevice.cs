@@ -74,6 +74,7 @@ namespace UniBLE.Platforms.Apple
                 return Task.CompletedTask;
             }
 
+            _connectTcs?.TrySetCanceled();
             _connectTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _connectTcs.TrySetCanceled());
 
@@ -95,6 +96,7 @@ namespace UniBLE.Platforms.Apple
                 return Task.CompletedTask;
             }
 
+            _disconnectTcs?.TrySetCanceled();
             _disconnectTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _disconnectTcs.TrySetCanceled());
 
@@ -116,6 +118,7 @@ namespace UniBLE.Platforms.Apple
                 throw new BleException(BleErrorCode.NotConnected, "Device is not connected");
             }
 
+            _discoverServicesTcs?.TrySetCanceled();
             _discoverServicesTcs = new TaskCompletionSource<IReadOnlyList<IBleService>>();
             cancellationToken.Register(() => _discoverServicesTcs.TrySetCanceled());
 
@@ -193,9 +196,12 @@ namespace UniBLE.Platforms.Apple
 
                 device._connectionState = BleConnectionState.Disconnected;
                 device._services.Clear();
-                device.OnConnectionStateChanged?.Invoke(device._connectionState);
 
-                Debug.Log($"[UniBLE] Device disconnected: {deviceId}" + (error != null ? $", error: {error}" : ""));
+                // Clean up static caches for this device
+                AppleBleCharacteristic.RemoveForDevice(deviceId);
+                AppleBleService.RemoveForDevice(deviceId);
+
+                device.OnConnectionStateChanged?.Invoke(device._connectionState);
             });
         }
 

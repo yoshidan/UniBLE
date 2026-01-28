@@ -46,10 +46,10 @@ namespace UniBLE.Platforms.Apple
         #endregion
 
         #region Callbacks
-        private delegate void ReadCallback(string deviceId, string characteristicUuid, IntPtr data, int dataLength, string error);
-        private delegate void WriteCallback(string deviceId, string characteristicUuid, string error);
-        private delegate void NotifyCallback(string deviceId, string characteristicUuid, IntPtr data, int dataLength);
-        private delegate void SubscribeCallback(string deviceId, string characteristicUuid, string error);
+        private delegate void ReadCallback(string deviceId, string serviceUuid, string characteristicUuid, IntPtr data, int dataLength, string error);
+        private delegate void WriteCallback(string deviceId, string serviceUuid, string characteristicUuid, string error);
+        private delegate void NotifyCallback(string deviceId, string serviceUuid, string characteristicUuid, IntPtr data, int dataLength);
+        private delegate void SubscribeCallback(string deviceId, string serviceUuid, string characteristicUuid, string error);
 
         private static ReadCallback _readCallback;
         private static WriteCallback _writeCallback;
@@ -82,6 +82,23 @@ namespace UniBLE.Platforms.Apple
             return $"{deviceId}:{serviceUuid}:{characteristicUuid}";
         }
 
+        internal static void RemoveForDevice(string deviceId)
+        {
+            var keysToRemove = new List<string>();
+            var prefix = deviceId + ":";
+            foreach (var key in _characteristics.Keys)
+            {
+                if (key.StartsWith(prefix))
+                {
+                    keysToRemove.Add(key);
+                }
+            }
+            foreach (var key in keysToRemove)
+            {
+                _characteristics.Remove(key);
+            }
+        }
+
         public Task<byte[]> ReadAsync(CancellationToken cancellationToken = default)
         {
             if (!Properties.HasFlag(BleCharacteristicProperties.Read))
@@ -89,6 +106,7 @@ namespace UniBLE.Platforms.Apple
                 throw new BleException(BleErrorCode.NotSupported, "Characteristic does not support reading");
             }
 
+            _readTcs?.TrySetCanceled();
             _readTcs = new TaskCompletionSource<byte[]>();
             cancellationToken.Register(() => _readTcs.TrySetCanceled());
 
@@ -108,6 +126,7 @@ namespace UniBLE.Platforms.Apple
                 throw new BleException(BleErrorCode.NotSupported, $"Characteristic does not support {(withResponse ? "write" : "write without response")}");
             }
 
+            _writeTcs?.TrySetCanceled();
             _writeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _writeTcs.TrySetCanceled());
 
@@ -127,6 +146,7 @@ namespace UniBLE.Platforms.Apple
             }
 
             _onNotify = onNotify;
+            _subscribeTcs?.TrySetCanceled();
             _subscribeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _subscribeTcs.TrySetCanceled());
 
@@ -141,6 +161,7 @@ namespace UniBLE.Platforms.Apple
         public Task UnsubscribeAsync(CancellationToken cancellationToken = default)
         {
             _onNotify = null;
+            _unsubscribeTcs?.TrySetCanceled();
             _unsubscribeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _unsubscribeTcs.TrySetCanceled());
 
@@ -153,7 +174,7 @@ namespace UniBLE.Platforms.Apple
         }
 
         [MonoPInvokeCallback(typeof(ReadCallback))]
-        private static void OnNativeReadResult(string deviceId, string characteristicUuid, IntPtr data, int dataLength, string error)
+        private static void OnNativeReadResult(string deviceId, string serviceUuid, string characteristicUuid, IntPtr data, int dataLength, string error)
         {
             byte[] dataArray = null;
             if (data != IntPtr.Zero && dataLength > 0)
@@ -164,18 +185,8 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                // Find characteristic by iterating (we don't have serviceUuid in callback)
-                AppleBleCharacteristic characteristic = null;
-                foreach (var kvp in _characteristics)
-                {
-                    if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
-                    {
-                        characteristic = kvp.Value;
-                        break;
-                    }
-                }
-
-                if (characteristic == null) return;
+                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
                 {
@@ -188,21 +199,12 @@ namespace UniBLE.Platforms.Apple
         }
 
         [MonoPInvokeCallback(typeof(WriteCallback))]
-        private static void OnNativeWriteResult(string deviceId, string characteristicUuid, string error)
+        private static void OnNativeWriteResult(string deviceId, string serviceUuid, string characteristicUuid, string error)
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                AppleBleCharacteristic characteristic = null;
-                foreach (var kvp in _characteristics)
-                {
-                    if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
-                    {
-                        characteristic = kvp.Value;
-                        break;
-                    }
-                }
-
-                if (characteristic == null) return;
+                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
                 {
@@ -214,8 +216,14 @@ namespace UniBLE.Platforms.Apple
             });
         }
 
+        // Invoked directly (bypassing MainThreadDispatcher) to ensure delivery even when
+        // Unity is paused (background). The native data is copied to a managed byte array
+        // immediately so it remains valid after the native call returns.
+        // Note: The callback fires on the CoreBluetooth dispatch queue thread, NOT the Unity
+        // main thread. If the user needs Unity API access, they should use
+        // MainThreadDispatcher.Enqueue() in their handler.
         [MonoPInvokeCallback(typeof(NotifyCallback))]
-        private static void OnNativeNotify(string deviceId, string characteristicUuid, IntPtr data, int dataLength)
+        private static void OnNativeNotify(string deviceId, string serviceUuid, string characteristicUuid, IntPtr data, int dataLength)
         {
             byte[] dataArray = null;
             if (data != IntPtr.Zero && dataLength > 0)
@@ -224,39 +232,18 @@ namespace UniBLE.Platforms.Apple
                 Marshal.Copy(data, dataArray, 0, dataLength);
             }
 
-            MainThreadDispatcher.Enqueue(() =>
-            {
-                AppleBleCharacteristic characteristic = null;
-                foreach (var kvp in _characteristics)
-                {
-                    if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
-                    {
-                        characteristic = kvp.Value;
-                        break;
-                    }
-                }
-
-                if (characteristic == null) return;
-                characteristic._onNotify?.Invoke(dataArray ?? new byte[0]);
-            });
+            var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+            if (!_characteristics.TryGetValue(key, out var characteristic)) return;
+            characteristic._onNotify?.Invoke(dataArray ?? new byte[0]);
         }
 
         [MonoPInvokeCallback(typeof(SubscribeCallback))]
-        private static void OnNativeSubscribeResult(string deviceId, string characteristicUuid, string error)
+        private static void OnNativeSubscribeResult(string deviceId, string serviceUuid, string characteristicUuid, string error)
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                AppleBleCharacteristic characteristic = null;
-                foreach (var kvp in _characteristics)
-                {
-                    if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
-                    {
-                        characteristic = kvp.Value;
-                        break;
-                    }
-                }
-
-                if (characteristic == null) return;
+                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
                 {
@@ -269,21 +256,12 @@ namespace UniBLE.Platforms.Apple
         }
 
         [MonoPInvokeCallback(typeof(SubscribeCallback))]
-        private static void OnNativeUnsubscribeResult(string deviceId, string characteristicUuid, string error)
+        private static void OnNativeUnsubscribeResult(string deviceId, string serviceUuid, string characteristicUuid, string error)
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                AppleBleCharacteristic characteristic = null;
-                foreach (var kvp in _characteristics)
-                {
-                    if (kvp.Key.StartsWith(deviceId + ":") && kvp.Key.EndsWith(":" + characteristicUuid))
-                    {
-                        characteristic = kvp.Value;
-                        break;
-                    }
-                }
-
-                if (characteristic == null) return;
+                var key = GetKey(deviceId, serviceUuid, characteristicUuid);
+                if (!_characteristics.TryGetValue(key, out var characteristic)) return;
 
                 if (!string.IsNullOrEmpty(error))
                 {

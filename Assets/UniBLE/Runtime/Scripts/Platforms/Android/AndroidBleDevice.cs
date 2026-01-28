@@ -38,6 +38,7 @@ namespace UniBLE.Platforms.Android
                 return Task.CompletedTask;
             }
 
+            _connectTcs?.TrySetCanceled();
             _connectTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _connectTcs.TrySetCanceled());
 
@@ -60,6 +61,7 @@ namespace UniBLE.Platforms.Android
                 return Task.CompletedTask;
             }
 
+            _disconnectTcs?.TrySetCanceled();
             _disconnectTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _disconnectTcs.TrySetCanceled());
 
@@ -81,6 +83,7 @@ namespace UniBLE.Platforms.Android
                 throw new BleException(BleErrorCode.NotConnected, "Device is not connected");
             }
 
+            _discoverServicesTcs?.TrySetCanceled();
             _discoverServicesTcs = new TaskCompletionSource<IReadOnlyList<IBleService>>();
             cancellationToken.Register(() => _discoverServicesTcs.TrySetCanceled());
 

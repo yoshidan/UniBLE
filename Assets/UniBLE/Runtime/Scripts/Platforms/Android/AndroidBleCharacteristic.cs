@@ -32,6 +32,12 @@ namespace UniBLE.Platforms.Android
 
         public Task<byte[]> ReadAsync(CancellationToken cancellationToken = default)
         {
+            if (!Properties.HasFlag(BleCharacteristicProperties.Read))
+            {
+                throw new BleException(BleErrorCode.NotSupported, "Characteristic does not support reading");
+            }
+
+            _readTcs?.TrySetCanceled();
             _readTcs = new TaskCompletionSource<byte[]>();
             cancellationToken.Register(() => _readTcs.TrySetCanceled());
 
@@ -45,6 +51,13 @@ namespace UniBLE.Platforms.Android
 
         public Task WriteAsync(byte[] data, bool withResponse = true, CancellationToken cancellationToken = default)
         {
+            var requiredProperty = withResponse ? BleCharacteristicProperties.Write : BleCharacteristicProperties.WriteWithoutResponse;
+            if (!Properties.HasFlag(requiredProperty))
+            {
+                throw new BleException(BleErrorCode.NotSupported, $"Characteristic does not support {(withResponse ? "write" : "write without response")}");
+            }
+
+            _writeTcs?.TrySetCanceled();
             _writeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _writeTcs.TrySetCanceled());
 
@@ -58,6 +71,11 @@ namespace UniBLE.Platforms.Android
 
         public Task SubscribeAsync(Action<byte[]> onNotify, CancellationToken cancellationToken = default)
         {
+            if (!Properties.HasFlag(BleCharacteristicProperties.Notify) && !Properties.HasFlag(BleCharacteristicProperties.Indicate))
+            {
+                throw new BleException(BleErrorCode.NotSupported, "Characteristic does not support notifications");
+            }
+
             _notifyCallback = onNotify;
 
             var tcs = new TaskCompletionSource<bool>();
@@ -189,10 +207,13 @@ namespace UniBLE.Platforms.Android
                 _characteristic = characteristic;
             }
 
-            // Called from Java
+            // Called from Java on the Android main thread (via mainHandler.post).
+            // Invoked directly to ensure delivery even when Unity is paused (background).
+            // Note: The callback may fire on a non-Unity thread. If the user needs Unity
+            // API access, they should use MainThreadDispatcher.Enqueue() in their handler.
             public void onNotify(byte[] data)
             {
-                MainThreadDispatcher.Enqueue(() => _characteristic.OnNotify(data));
+                _characteristic.OnNotify(data);
             }
         }
 

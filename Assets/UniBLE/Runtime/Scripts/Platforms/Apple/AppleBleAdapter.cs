@@ -31,6 +31,9 @@ namespace UniBLE.Platforms.Apple
 
         #region Native Methods
         [DllImport(DllName)]
+        private static extern void UniBle_SetDebugEnabled(bool enabled);
+
+        [DllImport(DllName)]
         private static extern void UniBle_Initialize(StateChangedCallback stateCallback, DeviceDiscoveredCallback deviceCallback, DisconnectCallback disconnectCallback);
 
         [DllImport(DllName)]
@@ -59,17 +62,26 @@ namespace UniBLE.Platforms.Apple
             return Marshal.PtrToStringAnsi(ptr);
         }
 
+        private static void Log(string message)
+        {
+            if (BleManager.DebugLogging)
+            {
+                UnityEngine.Debug.Log($"[UniBLE] {message}");
+            }
+        }
+
         public AppleBleAdapter()
         {
-            UnityEngine.Debug.Log("[UniBLE] AppleBleAdapter constructor start");
+            Log("AppleBleAdapter constructor start");
             _instance = this;
             _stateReadyTcs = new TaskCompletionSource<bool>();
             _stateChangedCallback = OnNativeStateChanged;
             _deviceDiscoveredCallback = OnNativeDeviceDiscovered;
             _disconnectCallback = AppleBleDevice.OnGlobalDisconnect;
-            UnityEngine.Debug.Log("[UniBLE] Calling UniBle_Initialize...");
+            UniBle_SetDebugEnabled(BleManager.DebugLogging);
+            Log("Calling UniBle_Initialize...");
             UniBle_Initialize(_stateChangedCallback, _deviceDiscoveredCallback, _disconnectCallback);
-            UnityEngine.Debug.Log("[UniBLE] UniBle_Initialize returned");
+            Log("UniBle_Initialize returned");
         }
 
         public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -108,6 +120,9 @@ namespace UniBLE.Platforms.Apple
             _discoveredDevices.Clear();
             _isScanning = true;
 
+            // Sync debug flag to native side in case it changed
+            UniBle_SetDebugEnabled(BleManager.DebugLogging);
+
             string uuidsJson = null;
             if (serviceUuids != null)
             {
@@ -118,11 +133,11 @@ namespace UniBLE.Platforms.Apple
                 }
             }
 
-            UnityEngine.Debug.Log($"[UniBLE] Before UniBle_StartScan, uuidsJson: {uuidsJson ?? "null"}");
+            Log($"Before UniBle_StartScan, uuidsJson: {uuidsJson ?? "null"}");
             try
             {
                 UniBle_StartScan(uuidsJson);
-                UnityEngine.Debug.Log("[UniBLE] After UniBle_StartScan - OK");
+                Log("After UniBle_StartScan - OK");
             }
             catch (System.Exception e)
             {
@@ -163,10 +178,10 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(StateChangedCallback))]
         private static void OnNativeStateChanged(int state)
         {
-            UnityEngine.Debug.Log($"[UniBLE] OnNativeStateChanged called with state: {state}");
+            Log($"OnNativeStateChanged called with state: {state}");
             MainThreadDispatcher.Enqueue(() =>
             {
-                UnityEngine.Debug.Log($"[UniBLE] OnNativeStateChanged MainThread, _instance null: {_instance == null}");
+                Log($"OnNativeStateChanged MainThread, _instance null: {_instance == null}");
                 if (_instance == null) return;
 
                 _instance._state = state switch
@@ -179,12 +194,12 @@ namespace UniBLE.Platforms.Apple
                     _ => BleAdapterState.Unknown
                 };
 
-                UnityEngine.Debug.Log($"[UniBLE] State set to: {_instance._state}");
+                Log($"State set to: {_instance._state}");
 
                 // Signal that state is now determined
                 if (_instance._state != BleAdapterState.Unknown)
                 {
-                    UnityEngine.Debug.Log("[UniBLE] Setting _stateReadyTcs result");
+                    Log("Setting _stateReadyTcs result");
                     _instance._stateReadyTcs?.TrySetResult(true);
                 }
 
@@ -200,8 +215,8 @@ namespace UniBLE.Platforms.Apple
                 var deviceId = PtrToString(deviceIdPtr);
                 var deviceName = PtrToString(deviceNamePtr);
                 var serviceUuidsJson = PtrToString(serviceUuidsJsonPtr);
-                UnityEngine.Debug.Log($"[UniBLE] Discovered: {deviceName} ({deviceId})");
-                UnityEngine.Debug.Log($"[UniBLE] Advertised Services: {serviceUuidsJson ?? "none"}");
+                Log($"Discovered: {deviceName} ({deviceId})");
+                Log($"Advertised Services: {serviceUuidsJson ?? "none"}");
 
                 MainThreadDispatcher.Enqueue(() =>
                 {

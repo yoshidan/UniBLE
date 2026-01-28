@@ -31,6 +31,7 @@ namespace UniBLE.Samples
 
         private async void Start()
         {
+            BleManager.DebugLogging = true;
             scanButton.onClick.AddListener(OnScanButtonClicked);
             stopButton.onClick.AddListener(OnStopButtonClicked);
 
@@ -91,10 +92,8 @@ namespace UniBLE.Samples
             try
             {
                 UpdateStatus("Scanning...");
-                var devices = new List<String>();
-                devices.Add("e2b23000-cd58-6f80-f2b0-b9bd830480be".ToUpper());
                 await _adapter.StartScanAsync(
-                    serviceUuids: devices, // Scan for all devices
+                    serviceUuids: null, // Scan for all devices
                     onDeviceDiscovered: OnDeviceDiscovered,
                     cancellationToken: _scanCts.Token
                 );
@@ -498,9 +497,11 @@ namespace UniBLE.Samples
                     UpdateStatus($"Subscribing to {characteristic.Uuid}...");
                     await characteristic.SubscribeAsync(data =>
                     {
+                        // This callback may fire on a non-Unity thread (background delivery).
+                        // Debug.Log is thread-safe, but UI updates must be dispatched to the main thread.
                         var hex = BitConverter.ToString(data).Replace("-", " ");
                         Debug.Log($"[BleScanner] Notify from {characteristic.Uuid}: [{hex}]");
-                        UpdateStatus($"Notify: {hex}");
+                        MainThreadDispatcher.Enqueue(() => UpdateStatus($"Notify: {hex}"));
                     });
                     _subscribedCharacteristics.Add(characteristic.Uuid);
                     Debug.Log($"[BleScanner] Subscribed to {characteristic.Uuid}");
