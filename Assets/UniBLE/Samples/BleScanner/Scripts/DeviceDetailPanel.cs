@@ -186,7 +186,7 @@ namespace UniBLE.Samples
             labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             labelText.fontSize = 22;
             labelText.color = Color.white;
-            labelText.text = c.Uuid;
+            labelText.text = c.Uuid.ToString();
 
             // Properties label
             var propsGo = new GameObject("Props");
