@@ -1,1 +1,8 @@
-build
+# Gradle build output
+build/
+
+# Gradle cache
+.gradle/
+
+# Local properties (machine-specific)
+local.properties

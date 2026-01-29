@@ -1,0 +1,68 @@
+name: Native Plugin Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'UniBlePlugin~/**'
+      - 'Makefile'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'UniBlePlugin~/**'
+      - 'Makefile'
+
+jobs:
+  build-apple:
+    name: Build macOS & iOS
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build macOS plugin
+        run: make macos
+
+      - name: Build iOS plugin
+        run: make ios
+
+      - name: Verify build artifacts
+        run: |
+          echo "Verifying macOS artifact..."
+          test -d Assets/UniBLE/Runtime/Plugins/macOS/UniBlePlugin.bundle
+          test -f Assets/UniBLE/Runtime/Plugins/macOS/UniBlePlugin.bundle/Contents/MacOS/UniBlePlugin
+          echo "macOS: OK"
+
+          echo "Verifying iOS artifacts..."
+          test -f Assets/UniBLE/Runtime/Plugins/iOS/libUniBlePlugin.a
+          test -d Assets/UniBLE/Runtime/Plugins/iOS/UniBlePlugin.xcframework
+          echo "iOS: OK"
+
+          echo "All Apple build artifacts verified."
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Android plugin
+        run: make android
+
+      - name: Verify build artifact
+        run: |
+          echo "Verifying Android artifact..."
+          test -f Assets/UniBLE/Runtime/Plugins/Android/UniBlePlugin.aar
+          echo "Android: OK"
+
+          echo "All Android build artifacts verified."
