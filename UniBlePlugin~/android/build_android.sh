@@ -8,8 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT_DIR="$SCRIPT_DIR/../../Assets/UniBLE/Runtime/Plugins/Android"
 AAR_NAME="UniBlePlugin.aar"
 
-# Gradle build output path
-AAR_BUILD="$SCRIPT_DIR/build/outputs/aar/android-release.aar"
+# Gradle build output path (module name from settings.gradle rootProject.name)
+AAR_BUILD="$SCRIPT_DIR/build/outputs/aar/UniBlePlugin-release.aar"
 
 # Check prerequisites
 echo "Checking build prerequisites..."
