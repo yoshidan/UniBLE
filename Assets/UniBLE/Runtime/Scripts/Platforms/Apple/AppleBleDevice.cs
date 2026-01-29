@@ -26,20 +26,14 @@ namespace UniBLE.Platforms.Apple
         public BleConnectionState ConnectionState => _connectionState;
         public event Action<BleConnectionState> OnConnectionStateChanged;
 
-#if UNITY_IOS && !UNITY_EDITOR
-        private const string DllName = "__Internal";
-#else
-        private const string DllName = "UniBlePlugin";
-#endif
-
         #region Native Methods
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_Connect(string deviceId, ConnectionCallback callback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_Disconnect(string deviceId, DisconnectCallback callback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_DiscoverServices(string deviceId, ServiceDiscoveryCallback callback);
         #endregion
 

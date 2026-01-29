@@ -9,17 +9,12 @@ using AOT;
 namespace UniBLE.Platforms.Apple
 {
     /// <summary>
-    /// macOS BLE characteristic implementation
+    /// Apple (macOS/iOS) BLE characteristic implementation
     /// </summary>
     public class AppleBleCharacteristic : IBleCharacteristic
     {
         private static readonly Dictionary<string, AppleBleCharacteristic> _characteristics = new Dictionary<string, AppleBleCharacteristic>();
 
-#if UNITY_IOS && !UNITY_EDITOR
-        private const string DllName = "__Internal";
-#else
-        private const string DllName = "UniBlePlugin";
-#endif
         private readonly string _deviceId;
         private readonly BleUuid _serviceUuid;
         private TaskCompletionSource<byte[]> _readTcs;
@@ -32,16 +27,16 @@ namespace UniBLE.Platforms.Apple
         private Action<byte[]> _onNotify;
 
         #region Native Methods
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_ReadCharacteristic(string deviceId, string serviceUuid, string characteristicUuid, ReadCallback callback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_WriteCharacteristic(string deviceId, string serviceUuid, string characteristicUuid, byte[] data, int dataLength, bool withResponse, WriteCallback callback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_Subscribe(string deviceId, string serviceUuid, string characteristicUuid, NotifyCallback notifyCallback, SubscribeCallback resultCallback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_Unsubscribe(string deviceId, string serviceUuid, string characteristicUuid, SubscribeCallback resultCallback);
         #endregion
 

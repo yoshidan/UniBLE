@@ -9,17 +9,12 @@ using AOT;
 namespace UniBLE.Platforms.Apple
 {
     /// <summary>
-    /// macOS BLE service implementation
+    /// Apple (macOS/iOS) BLE service implementation
     /// </summary>
     public class AppleBleService : IBleService
     {
         private static readonly Dictionary<string, AppleBleService> _services = new Dictionary<string, AppleBleService>();
 
-#if UNITY_IOS && !UNITY_EDITOR
-        private const string DllName = "__Internal";
-#else
-        private const string DllName = "UniBlePlugin";
-#endif
         private readonly Dictionary<BleUuid, AppleBleCharacteristic> _characteristics = new Dictionary<BleUuid, AppleBleCharacteristic>();
         private readonly string _deviceId;
         private TaskCompletionSource<IReadOnlyList<IBleCharacteristic>> _discoverCharacteristicsTcs;
@@ -27,7 +22,7 @@ namespace UniBLE.Platforms.Apple
         public BleUuid Uuid { get; }
 
         #region Native Methods
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_DiscoverCharacteristics(string deviceId, string serviceUuid, CharacteristicDiscoveryCallback callback);
         #endregion
 
