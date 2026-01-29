@@ -73,6 +73,13 @@ static UniBleManager* g_sharedInstance = nil;
 
     if (!self.centralManager) {
         self.centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:_syncQueue];
+    } else {
+        // CBCentralManager already exists (e.g., Unity Editor Play→Stop→Play).
+        // Re-fire current state since centralManagerDidUpdateState: will NOT be
+        // called again for an already-initialized manager.
+        dispatch_async(_syncQueue, ^{
+            [self centralManagerDidUpdateState:self.centralManager];
+        });
     }
 }
 

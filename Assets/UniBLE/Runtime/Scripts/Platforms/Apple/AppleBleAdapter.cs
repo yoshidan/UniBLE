@@ -76,6 +76,16 @@ namespace UniBLE.Platforms.Apple
             Log("Calling UniBle_Initialize...");
             UniBle_Initialize(_stateChangedCallback, _deviceDiscoveredCallback, _disconnectCallback);
             Log("UniBle_Initialize returned");
+
+            // Immediate state check for re-initialization scenario
+            // (e.g., Unity Editor Play->Stop->Play where CBCentralManager
+            // already reached PoweredOn during a previous session).
+            if (UniBle_IsAvailable())
+            {
+                _state = BleAdapterState.PoweredOn;
+                _stateReadyTcs.TrySetResult(true);
+                Log("Immediate availability check: already PoweredOn");
+            }
         }
 
         public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
