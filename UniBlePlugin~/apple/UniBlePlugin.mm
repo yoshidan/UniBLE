@@ -615,6 +615,7 @@ void UniBle_StartScan(const char* serviceUuidsJson) {
     if (serviceUuidsJson) {
         NSString* json = [NSString stringWithUTF8String:serviceUuidsJson];
         UNIBLE_LOG(@"Parsing JSON: %@", json);
+        // Parse simple JSON array: ["uuid1", "uuid2"]
         json = [json stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
         if ([json hasPrefix:@"["] && [json hasSuffix:@"]"]) {
             json = [json substringWithRange:NSMakeRange(1, json.length - 2)];

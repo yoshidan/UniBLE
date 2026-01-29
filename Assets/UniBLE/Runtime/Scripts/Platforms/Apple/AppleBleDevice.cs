@@ -15,7 +15,7 @@ namespace UniBLE.Platforms.Apple
     public class AppleBleDevice : IBleDevice
     {
         private static readonly Dictionary<string, AppleBleDevice> _devices = new Dictionary<string, AppleBleDevice>();
-        private readonly Dictionary<string, AppleBleService> _services = new Dictionary<string, AppleBleService>();
+        private readonly Dictionary<BleUuid, AppleBleService> _services = new Dictionary<BleUuid, AppleBleService>();
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
         private TaskCompletionSource<bool> _disconnectTcs;
@@ -26,20 +26,14 @@ namespace UniBLE.Platforms.Apple
         public BleConnectionState ConnectionState => _connectionState;
         public event Action<BleConnectionState> OnConnectionStateChanged;
 
-#if UNITY_IOS && !UNITY_EDITOR
-        private const string DllName = "__Internal";
-#else
-        private const string DllName = "UniBlePlugin";
-#endif
-
         #region Native Methods
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_Connect(string deviceId, ConnectionCallback callback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_Disconnect(string deviceId, DisconnectCallback callback);
 
-        [DllImport(DllName)]
+        [DllImport(AppleNativeConstants.DllName)]
         private static extern void UniBle_DiscoverServices(string deviceId, ServiceDiscoveryCallback callback);
         #endregion
 
@@ -130,12 +124,12 @@ namespace UniBLE.Platforms.Apple
             return _discoverServicesTcs.Task;
         }
 
-        public async Task<IBleService> GetServiceAsync(string uuid, CancellationToken cancellationToken = default)
+        public async Task<IBleService> GetServiceAsync(BleUuid uuid, CancellationToken cancellationToken = default)
         {
             var services = await GetServicesAsync(cancellationToken);
             foreach (var service in services)
             {
-                if (service.Uuid.Equals(uuid, StringComparison.OrdinalIgnoreCase))
+                if (service.Uuid == uuid)
                 {
                     return service;
                 }
@@ -224,9 +218,10 @@ namespace UniBLE.Platforms.Apple
                 // Parse JSON array of service UUIDs: ["uuid1", "uuid2", ...]
                 if (!string.IsNullOrEmpty(servicesJson))
                 {
-                    var uuids = ParseJsonStringArray(servicesJson);
-                    foreach (var uuid in uuids)
+                    var uuidStrs = ParseJsonStringArray(servicesJson);
+                    foreach (var uuidStr in uuidStrs)
                     {
+                        var uuid = new BleUuid(uuidStr);
                         var service = new AppleBleService(uuid, deviceId);
                         device._services[uuid] = service;
                         result.Add(service);

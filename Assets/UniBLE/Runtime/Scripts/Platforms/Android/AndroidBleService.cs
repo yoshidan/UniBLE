@@ -14,11 +14,11 @@ namespace UniBLE.Platforms.Android
     {
         private readonly AndroidJavaObject _plugin;
         private readonly string _deviceId;
-        private readonly Dictionary<string, AndroidBleCharacteristic> _characteristics = new Dictionary<string, AndroidBleCharacteristic>();
+        private readonly Dictionary<BleUuid, AndroidBleCharacteristic> _characteristics = new Dictionary<BleUuid, AndroidBleCharacteristic>();
 
-        public string Uuid { get; }
+        public BleUuid Uuid { get; }
 
-        internal AndroidBleService(string uuid, AndroidJavaObject plugin, string deviceId)
+        internal AndroidBleService(BleUuid uuid, AndroidJavaObject plugin, string deviceId)
         {
             Uuid = uuid;
             _plugin = plugin;
@@ -31,12 +31,13 @@ namespace UniBLE.Platforms.Android
             var result = new List<IBleCharacteristic>();
 
             // Call Java plugin to get characteristics array
-            var characteristics = _plugin.Call<AndroidJavaObject[]>("getCharacteristics", _deviceId, Uuid);
+            var characteristics = _plugin.Call<AndroidJavaObject[]>("getCharacteristics", _deviceId, Uuid.ToFullString());
             if (characteristics != null)
             {
                 foreach (var characteristic in characteristics)
                 {
-                    var uuid = characteristic.Call<AndroidJavaObject>("getUuid").Call<string>("toString");
+                    var uuidStr = characteristic.Call<AndroidJavaObject>("getUuid").Call<string>("toString");
+                    var uuid = new BleUuid(uuidStr);
                     var properties = characteristic.Call<int>("getProperties");
                     var bleCharacteristic = new AndroidBleCharacteristic(uuid, properties, _plugin, _deviceId, Uuid);
                     _characteristics[uuid] = bleCharacteristic;
@@ -47,12 +48,12 @@ namespace UniBLE.Platforms.Android
             return Task.FromResult<IReadOnlyList<IBleCharacteristic>>(result);
         }
 
-        public async Task<IBleCharacteristic> GetCharacteristicAsync(string uuid, CancellationToken cancellationToken = default)
+        public async Task<IBleCharacteristic> GetCharacteristicAsync(BleUuid uuid, CancellationToken cancellationToken = default)
         {
             var characteristics = await GetCharacteristicsAsync(cancellationToken);
             foreach (var characteristic in characteristics)
             {
-                if (characteristic.Uuid.Equals(uuid, StringComparison.OrdinalIgnoreCase))
+                if (characteristic.Uuid == uuid)
                 {
                     return characteristic;
                 }

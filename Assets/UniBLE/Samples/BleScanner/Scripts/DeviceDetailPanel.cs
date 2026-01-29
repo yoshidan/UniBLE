@@ -22,7 +22,7 @@ namespace UniBLE.Samples
         private Action _onBack;
         private bool _connected;
         private readonly List<GameObject> _rows = new List<GameObject>();
-        private readonly HashSet<string> _subscribedUuids = new HashSet<string>();
+        private readonly HashSet<BleUuid> _subscribedUuids = new HashSet<BleUuid>();
 
         public void Setup(IBleDevice device, Action onBack)
         {
@@ -186,7 +186,7 @@ namespace UniBLE.Samples
             labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             labelText.fontSize = 22;
             labelText.color = Color.white;
-            labelText.text = c.Uuid;
+            labelText.text = c.Uuid.ToString();
 
             // Properties label
             var propsGo = new GameObject("Props");

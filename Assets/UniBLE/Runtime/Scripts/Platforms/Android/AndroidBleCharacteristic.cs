@@ -13,15 +13,15 @@ namespace UniBLE.Platforms.Android
     {
         private readonly AndroidJavaObject _plugin;
         private readonly string _deviceId;
-        private readonly string _serviceUuid;
+        private readonly BleUuid _serviceUuid;
         private Action<byte[]> _notifyCallback;
         private TaskCompletionSource<byte[]> _readTcs;
         private TaskCompletionSource<bool> _writeTcs;
 
-        public string Uuid { get; }
+        public BleUuid Uuid { get; }
         public BleCharacteristicProperties Properties { get; }
 
-        internal AndroidBleCharacteristic(string uuid, int androidProperties, AndroidJavaObject plugin, string deviceId, string serviceUuid)
+        internal AndroidBleCharacteristic(BleUuid uuid, int androidProperties, AndroidJavaObject plugin, string deviceId, BleUuid serviceUuid)
         {
             Uuid = uuid;
             Properties = ConvertProperties(androidProperties);
@@ -43,7 +43,7 @@ namespace UniBLE.Platforms.Android
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                _plugin.Call("readCharacteristic", _deviceId, _serviceUuid, Uuid, new ReadCallback(this));
+                _plugin.Call("readCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new ReadCallback(this));
             });
 
             return _readTcs.Task;
@@ -63,7 +63,7 @@ namespace UniBLE.Platforms.Android
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                _plugin.Call("writeCharacteristic", _deviceId, _serviceUuid, Uuid, data, withResponse, new WriteCallback(this));
+                _plugin.Call("writeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), data, withResponse, new WriteCallback(this));
             });
 
             return _writeTcs.Task;
@@ -83,7 +83,7 @@ namespace UniBLE.Platforms.Android
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                _plugin.Call("subscribeCharacteristic", _deviceId, _serviceUuid, Uuid, new NotifyCallback(this), new SubscribeResultCallback(tcs));
+                _plugin.Call("subscribeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new NotifyCallback(this), new SubscribeResultCallback(tcs));
             });
 
             return tcs.Task;
@@ -98,7 +98,7 @@ namespace UniBLE.Platforms.Android
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                _plugin.Call("unsubscribeCharacteristic", _deviceId, _serviceUuid, Uuid, new SubscribeResultCallback(tcs));
+                _plugin.Call("unsubscribeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new SubscribeResultCallback(tcs));
             });
 
             return tcs.Task;

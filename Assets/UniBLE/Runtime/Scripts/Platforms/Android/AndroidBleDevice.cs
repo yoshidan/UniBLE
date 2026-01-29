@@ -13,7 +13,7 @@ namespace UniBLE.Platforms.Android
     public class AndroidBleDevice : IBleDevice
     {
         private readonly AndroidJavaObject _plugin;
-        private readonly Dictionary<string, AndroidBleService> _services = new Dictionary<string, AndroidBleService>();
+        private readonly Dictionary<BleUuid, AndroidBleService> _services = new Dictionary<BleUuid, AndroidBleService>();
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
         private TaskCompletionSource<IReadOnlyList<IBleService>> _discoverServicesTcs;
@@ -95,12 +95,12 @@ namespace UniBLE.Platforms.Android
             return _discoverServicesTcs.Task;
         }
 
-        public async Task<IBleService> GetServiceAsync(string uuid, CancellationToken cancellationToken = default)
+        public async Task<IBleService> GetServiceAsync(BleUuid uuid, CancellationToken cancellationToken = default)
         {
             var services = await GetServicesAsync(cancellationToken);
             foreach (var service in services)
             {
-                if (service.Uuid.Equals(uuid, StringComparison.OrdinalIgnoreCase))
+                if (service.Uuid == uuid)
                 {
                     return service;
                 }
@@ -159,7 +159,8 @@ namespace UniBLE.Platforms.Android
             {
                 foreach (var service in services)
                 {
-                    var uuid = service.Call<AndroidJavaObject>("getUuid").Call<string>("toString");
+                    var uuidStr = service.Call<AndroidJavaObject>("getUuid").Call<string>("toString");
+                    var uuid = new BleUuid(uuidStr);
                     var bleService = new AndroidBleService(uuid, _plugin, Id);
                     _services[uuid] = bleService;
                     result.Add(bleService);

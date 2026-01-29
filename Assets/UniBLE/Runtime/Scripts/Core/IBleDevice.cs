@@ -48,7 +48,7 @@ namespace UniBLE
         /// <summary>
         /// Get a service by UUID
         /// </summary>
-        Task<IBleService> GetServiceAsync(string uuid, CancellationToken cancellationToken = default);
+        Task<IBleService> GetServiceAsync(BleUuid uuid, CancellationToken cancellationToken = default);
     }
 
     /// <summary>

@@ -93,5 +93,10 @@ rm -f "$OUTPUT_DIR/libUniBlePlugin_sim_arm64.a"
 rm -f "$OUTPUT_DIR/libUniBlePlugin_sim_x86_64.a"
 rm -f "$OUTPUT_DIR/libUniBlePlugin_simulator.a"
 
+# Sync source files to iOS plugin directory (single source of truth)
+echo "Syncing source files to iOS plugin directory..."
+cp "$SCRIPT_DIR/UniBlePlugin.h" "$OUTPUT_DIR/UniBlePlugin.h"
+cp "$SCRIPT_DIR/UniBlePlugin.mm" "$OUTPUT_DIR/UniBlePlugin.mm"
+
 echo "Build complete: $OUTPUT_DIR/$LIB_NAME"
 echo "XCFramework: $OUTPUT_DIR/UniBlePlugin.xcframework"

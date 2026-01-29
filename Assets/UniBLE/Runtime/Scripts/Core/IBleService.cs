@@ -12,7 +12,7 @@ namespace UniBLE
         /// <summary>
         /// UUID of the service
         /// </summary>
-        string Uuid { get; }
+        BleUuid Uuid { get; }
 
         /// <summary>
         /// Get all characteristics belonging to this service
@@ -22,6 +22,6 @@ namespace UniBLE
         /// <summary>
         /// Get a characteristic by UUID
         /// </summary>
-        Task<IBleCharacteristic> GetCharacteristicAsync(string uuid, CancellationToken cancellationToken = default);
+        Task<IBleCharacteristic> GetCharacteristicAsync(BleUuid uuid, CancellationToken cancellationToken = default);
     }
 }
