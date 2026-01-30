@@ -43,9 +43,9 @@ graph TD
 | Android | API 21 (compileSdk 34) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
 | iOS | 12.0 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
 | macOS | 10.13 | `.bundle` (Universal) | arm64 + x86_64 |
-| Windows | 10 | `.dll` (UWP) | x64 *(Experimental)* |
+| Windows | 10 | `.dll` (UWP) | x64 *(Under Construction)* |
 
-> **Note:** Windows support is experimental. Pre-built `.dll` is included but no build script is provided.
+> **Note:** Windows support is under construction. Pre-built `.dll` is included but no build script is provided.
 
 ## Requirements
 
@@ -139,6 +139,23 @@ await characteristic.UnsubscribeAsync();
 await device.DisconnectAsync();
 ```
 
+### Connection State Monitoring
+
+```csharp
+// Monitor connection state changes
+device.OnConnectionStateChanged += state =>
+{
+    Debug.Log($"Connection state: {state}");
+    // BleConnectionState: Disconnected, Connecting, Connected, Disconnecting
+};
+
+// Check current state
+if (device.ConnectionState == BleConnectionState.Connected)
+{
+    Debug.Log("Device is connected");
+}
+```
+
 ### UUID Usage
 
 ```csharp
@@ -189,54 +206,6 @@ make help
 |----------|-------|
 | iOS / macOS | Xcode command line tools (`clang++`, `xcodebuild`, `lipo`) |
 | Android | Java JDK, Gradle (or use included `gradlew`; Gradle 9.3.0, AGP 8.7.3) |
-
-### Native Source Location
-
-```
-UniBlePlugin~/
-├── apple/
-│   ├── UniBlePlugin.mm       # Obj-C++ CoreBluetooth implementation
-│   ├── UniBlePlugin.h
-│   ├── build_ios.sh
-│   └── build_macos.sh
-└── android/
-    ├── src/main/java/...      # Java BLE implementation
-    ├── build.gradle
-    ├── build_android.sh
-    └── gradlew
-```
-
-## Project Structure
-
-```
-Assets/UniBLE/
-├── Editor/
-│   └── UniBlePostProcessBuild.cs    # iOS Xcode auto-configuration
-├── Runtime/
-│   ├── Plugins/
-│   │   ├── Android/                 # .aar
-│   │   ├── iOS/                     # .a + .xcframework
-│   │   ├── macOS/                   # .bundle
-│   │   └── Windows/                 # .dll
-│   ├── Scripts/
-│   │   ├── Core/                    # Interfaces & shared types
-│   │   │   ├── IBleAdapter.cs
-│   │   │   ├── IBleDevice.cs
-│   │   │   ├── IBleService.cs
-│   │   │   ├── IBleCharacteristic.cs
-│   │   │   ├── BleManager.cs
-│   │   │   ├── BleException.cs
-│   │   │   ├── BleUuid.cs
-│   │   │   ├── ScanResult.cs
-│   │   │   └── MainThreadDispatcher.cs
-│   │   └── Platforms/
-│   │       ├── Apple/               # iOS & macOS (CoreBluetooth)
-│   │       ├── Android/             # Android BLE
-│   │       └── Windows/             # UWP Bluetooth
-│   └── UniBLE.Runtime.asmdef
-Assets/Samples/
-└── BleScanner/                      # Sample app (not included in UPM package)
-```
 
 ## Samples
 
