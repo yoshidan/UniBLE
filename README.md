@@ -1,0 +1,253 @@
+# UniBLE
+
+**Cross-platform BLE library for Unity**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Unity 2021.2+](https://img.shields.io/badge/Unity-2021.2%2B-black.svg)](https://unity.com/)
+[![Android](https://img.shields.io/badge/Android-API%2021%2B-3DDC84.svg)](#supported-platforms)
+[![iOS](https://img.shields.io/badge/iOS-12.0%2B-000000.svg)](#supported-platforms)
+[![macOS](https://img.shields.io/badge/macOS-10.13%2B-999999.svg)](#supported-platforms)
+
+UniBLE provides a unified async/await BLE (Bluetooth Low Energy) API across Android, iOS, macOS, and Windows, backed by native plugins for each platform.
+
+```mermaid
+graph TD
+    A["C# — Your App Code"] --> B["UniBLE API<br/>(IBleAdapter / IBleDevice / IBleService / IBleCharacteristic)"]
+    B --> C["BleManager<br/>Platform auto-detection"]
+    C --> D["AppleBleAdapter<br/>CoreBluetooth"]
+    C --> E["AndroidBleAdapter<br/>Android BLE API"]
+    C --> F["WindowsBleAdapter<br/>UWP Bluetooth"]
+    D --> G["Native Plugin<br/>Obj-C++ (.bundle / .a)"]
+    E --> H["Native Plugin<br/>Java (.aar)"]
+    F --> I["Native Plugin<br/>C# (.dll)"]
+```
+
+## Features
+
+- **Unified API** — Single C# interface for all platforms
+- **async/await** — All BLE operations return `Task<T>` with `CancellationToken` support
+- **BLE 4.0+ GATT Client** (Central role)
+- **Scan** with optional service UUID filtering
+- **Connect / Disconnect** with connection state tracking
+- **Service & Characteristic Discovery**
+- **Read / Write / Notify / Subscribe** for characteristics
+- **Runtime Permission** handling (Android)
+- **Known Device** reconnection by device ID
+- **Advertisement Data & RSSI** retrieval
+- **16/32/128-bit UUID** support with implicit string conversion
+
+## Supported Platforms
+
+| Platform | Min Version | Output Format | Architecture |
+|----------|------------|---------------|--------------|
+| Android | API 21 (compileSdk 34) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
+| iOS | 12.0 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
+| macOS | 10.13 | `.bundle` (Universal) | arm64 + x86_64 |
+| Windows | 10 | `.dll` (UWP) | x64 *(Experimental)* |
+
+> **Note:** Windows support is experimental. Pre-built `.dll` is included but no build script is provided.
+
+## Requirements
+
+- **Unity 2021.2** or later (C# 8.0 switch expressions are used)
+- **Android**: Android SDK, Java JDK
+- **iOS/macOS**: Xcode command line tools (clang++, xcodebuild, lipo)
+- **Windows**: Windows 10 with UWP Bluetooth API support
+
+## Installation
+
+UniBLE is not yet available as a UPM package. Install manually:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yoshidan/UniBLE.git
+   ```
+
+2. Copy the `Assets/UniBLE/` folder into your Unity project's `Assets/` directory.
+
+3. Unity will automatically detect the native plugins for your target platform.
+
+## Quick Start
+
+```csharp
+using UniBLE;
+using UnityEngine;
+
+public class BleExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 1. Get adapter (auto-detects platform)
+        var adapter = BleManager.Adapter;
+
+        // 2. Check availability
+        bool available = await adapter.IsAvailableAsync();
+        if (!available) return;
+
+        // 3. Request permission (required on Android)
+        bool granted = await adapter.RequestPermissionAsync();
+        if (!granted) return;
+
+        // 4. Scan for devices
+        await adapter.StartScanAsync(result =>
+        {
+            Debug.Log($"Found: {result.Device.Name} RSSI:{result.Rssi}");
+        });
+
+        // 5. Stop scan
+        await adapter.StopScanAsync();
+    }
+}
+```
+
+### Reading & Writing Characteristics
+
+```csharp
+// Connect to a device
+await device.ConnectAsync();
+
+// Discover services and characteristics
+var service = await device.GetServiceAsync("180D");
+var characteristic = await service.GetCharacteristicAsync("2A37");
+
+// Read
+byte[] data = await characteristic.ReadAsync();
+
+// Write
+await characteristic.WriteAsync(new byte[] { 0x01 });
+
+// Subscribe to notifications
+await characteristic.SubscribeAsync(data =>
+{
+    Debug.Log($"Notification: {BitConverter.ToString(data)}");
+});
+
+// Cleanup
+await characteristic.UnsubscribeAsync();
+await device.DisconnectAsync();
+```
+
+### UUID Usage
+
+```csharp
+// BleUuid supports implicit conversion from string
+BleUuid uuid = "180D";                                      // 16-bit short UUID
+BleUuid full = "0000180d-0000-1000-8000-00805f9b34fb";      // Full 128-bit UUID
+```
+
+## API Overview
+
+| Type | Role |
+|------|------|
+| `BleManager` | Static entry point. Access `BleManager.Adapter` to get the platform-specific `IBleAdapter`. |
+| `IBleAdapter` | Scan, check availability, request permissions, connect to known devices. |
+| `IBleDevice` | Connect, disconnect, discover services. Properties: `Id`, `Name`, `ConnectionState`. |
+| `IBleService` | Discover characteristics. Property: `Uuid`. |
+| `IBleCharacteristic` | Read, write, subscribe, unsubscribe. Properties: `Uuid`, `Properties`. |
+| `BleUuid` | `readonly struct`. Supports 16/32/128-bit UUIDs with implicit `string` conversion. |
+| `ScanResult` | Contains `Device`, `Rssi`, and `AdvertisementData`. |
+| `BleException` | Thrown on BLE errors. Contains `BleErrorCode` (14 error types). |
+| `BleAdapterState` | `Unknown`, `Resetting`, `Unsupported`, `Unauthorized`, `PoweredOff`, `PoweredOn` |
+| `BleConnectionState` | `Disconnected`, `Connecting`, `Connected`, `Disconnecting` |
+| `CharacteristicProperties` | `[Flags]` enum: `Broadcast`, `Read`, `WriteWithoutResponse`, `Write`, `Notify`, `Indicate` |
+
+## Building Native Plugins
+
+Native plugins are pre-built and included in the repository. To rebuild from source:
+
+```bash
+# Build all platforms
+make all
+
+# Build individual platforms
+make ios       # iOS static library (.a) + XCFramework
+make macos     # macOS universal bundle (.bundle)
+make android   # Android library (.aar)
+
+# Clean build artifacts
+make clean
+
+# Show available targets
+make help
+```
+
+### Prerequisites
+
+| Platform | Tools |
+|----------|-------|
+| iOS / macOS | Xcode command line tools (`clang++`, `xcodebuild`, `lipo`) |
+| Android | Java JDK, Gradle (or use included `gradlew`; Gradle 9.3.0, AGP 8.7.3) |
+
+### Native Source Location
+
+```
+UniBlePlugin~/
+├── apple/
+│   ├── UniBlePlugin.mm       # Obj-C++ CoreBluetooth implementation
+│   ├── UniBlePlugin.h
+│   ├── build_ios.sh
+│   └── build_macos.sh
+└── android/
+    ├── src/main/java/...      # Java BLE implementation
+    ├── build.gradle
+    ├── build_android.sh
+    └── gradlew
+```
+
+## Project Structure
+
+```
+Assets/UniBLE/
+├── Editor/
+│   └── UniBlePostProcessBuild.cs    # iOS Xcode auto-configuration
+├── Runtime/
+│   ├── Plugins/
+│   │   ├── Android/                 # .aar
+│   │   ├── iOS/                     # .a + .xcframework
+│   │   ├── macOS/                   # .bundle
+│   │   └── Windows/                 # .dll
+│   ├── Scripts/
+│   │   ├── Core/                    # Interfaces & shared types
+│   │   │   ├── IBleAdapter.cs
+│   │   │   ├── IBleDevice.cs
+│   │   │   ├── IBleService.cs
+│   │   │   ├── IBleCharacteristic.cs
+│   │   │   ├── BleManager.cs
+│   │   │   ├── BleException.cs
+│   │   │   ├── BleUuid.cs
+│   │   │   ├── ScanResult.cs
+│   │   │   └── MainThreadDispatcher.cs
+│   │   └── Platforms/
+│   │       ├── Apple/               # iOS & macOS (CoreBluetooth)
+│   │       ├── Android/             # Android BLE
+│   │       └── Windows/             # UWP Bluetooth
+│   └── UniBLE.Runtime.asmdef
+└── Samples/
+    └── BleScanner/                  # Sample app
+```
+
+## Samples
+
+A sample BLE scanner is included at `Assets/UniBLE/Samples/BleScanner/`:
+
+| File | Description |
+|------|-------------|
+| `BleScannerSample.cs` | Scans for BLE devices and displays a list |
+| `DeviceDetailPanel.cs` | Service & characteristic operations UI |
+| `BleScannerEditorSceneCreator.cs` | Editor tool to auto-generate the sample scene |
+
+Open the sample scene or use the editor menu to create it, then press Play to scan for nearby BLE devices.
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Issues** — Search existing issues before creating a new one. Include platform, Unity version, and reproduction steps.
+2. **Pull Requests** — Fork the repository, create a feature branch, and submit a PR with a clear description.
+3. **Code Style** — Write comments and documentation in English. Follow existing code conventions.
+4. **Testing** — Test on at least one physical device before submitting (BLE does not work in simulators).
+5. **Native Plugins** — If modifying native code, rebuild the affected platform plugin and include the updated binary.
+
+## License
+
+[MIT License](LICENSE) — Copyright (c) 2026 Naohiro Yoshida
