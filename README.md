@@ -56,7 +56,19 @@ graph TD
 
 ## Installation
 
-UniBLE is not yet available as a UPM package. Install manually:
+### UPM (Unity Package Manager)
+
+Add the following to your `Packages/manifest.json`:
+
+```json
+{
+  "dependencies": {
+    "com.github.yoshidan.unible": "https://github.com/yoshidan/UniBLE.git?path=Assets/UniBLE"
+  }
+}
+```
+
+### Manual
 
 1. Clone the repository:
    ```bash

@@ -1,0 +1,8 @@
+{
+    "name": "com.github.yoshidan.unible",
+    "displayName": "UniBLE",
+    "version": "1.0.0",
+    "unity": "2021.2",
+    "description": "Cross-platform BLE (Bluetooth Low Energy) library for Unity with async/await API.",
+    "dependencies": {}
+}
