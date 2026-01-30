@@ -246,11 +246,13 @@ A sample BLE scanner is included at `Assets/Samples/BleScanner/`:
 
 | File | Description |
 |------|-------------|
+| `BleScannerSample.unity` | Pre-built sample scene |
 | `BleScannerSample.cs` | Scans for BLE devices and displays a list |
 | `DeviceDetailPanel.cs` | Service & characteristic operations UI |
-| `BleScannerEditorSceneCreator.cs` | Editor tool to auto-generate the sample scene |
+| `DeviceListItem.cs` | Device list entry component |
+| `Prefabs/DeviceListItem.prefab` | Device list item prefab |
 
-Open the sample scene or use the editor menu to create it, then press Play to scan for nearby BLE devices.
+Open `Assets/Samples/BleScanner/BleScannerSample.unity` and press Play to scan for nearby BLE devices.
 
 ## Contributing
 
