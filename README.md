@@ -16,10 +16,12 @@ graph TD
     B --> C["BleManager<br/>Platform auto-detection"]
     C --> D["AppleBleAdapter<br/>CoreBluetooth"]
     C --> E["AndroidBleAdapter<br/>Android BLE API"]
-    C --> F["WindowsBleAdapter<br/>UWP Bluetooth"]
+    C -.-> F["🚧 WindowsBleAdapter<br/>UWP Bluetooth<br/>(Under Construction)"]
     D --> G["Native Plugin<br/>Obj-C++ (.bundle / .a)"]
     E --> H["Native Plugin<br/>Java (.aar)"]
-    F --> I["Native Plugin<br/>C# (.dll)"]
+    F -.-> I["🚧 Native Plugin<br/>C# (.dll)<br/>(Under Construction)"]
+    style F fill:#888,stroke:#666,color:#fff
+    style I fill:#888,stroke:#666,color:#fff
 ```
 
 ## Features
@@ -43,7 +45,7 @@ graph TD
 | Android | API 21 (compileSdk 34) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
 | iOS | 12.0 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
 | macOS | 10.13 | `.bundle` (Universal) | arm64 + x86_64 |
-| Windows | 10 | `.dll` (UWP) | x64 *(Under Construction)* |
+| Windows | 11 | `.dll` (UWP) | x64 *(Under Construction)* |
 
 > **Note:** Windows support is under construction. Pre-built `.dll` is included but no build script is provided.
 
