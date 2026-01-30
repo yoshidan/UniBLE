@@ -234,13 +234,15 @@ Assets/UniBLE/
 │   │       ├── Android/             # Android BLE
 │   │       └── Windows/             # UWP Bluetooth
 │   └── UniBLE.Runtime.asmdef
-└── Samples/
-    └── BleScanner/                  # Sample app
+Assets/Samples/
+└── BleScanner/                      # Sample app (not included in UPM package)
 ```
 
 ## Samples
 
-A sample BLE scanner is included at `Assets/UniBLE/Samples/BleScanner/`:
+> **Note:** Samples are not included in the UPM package. Clone the repository to use them.
+
+A sample BLE scanner is included at `Assets/Samples/BleScanner/`:
 
 | File | Description |
 |------|-------------|
