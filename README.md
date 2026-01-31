@@ -3,7 +3,7 @@
 **Cross-platform BLE library for Unity**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Unity 2021.2+](https://img.shields.io/badge/Unity-2021.2%2B-black.svg)](https://unity.com/)
+[![Unity 2022.3 LTS+](https://img.shields.io/badge/Unity-2022.3%20LTS%2B-black.svg)](https://unity.com/)
 [![Android](https://img.shields.io/badge/Android-API%2021%2B-3DDC84.svg)](#supported-platforms)
 [![iOS](https://img.shields.io/badge/iOS-12.0%2B-000000.svg)](#supported-platforms)
 [![macOS](https://img.shields.io/badge/macOS-10.13%2B-999999.svg)](#supported-platforms)
@@ -40,7 +40,7 @@ graph TD
 
 | Platform | Min Version | Output Format | Architecture |
 |----------|------------|---------------|--------------|
-| Android | API 21 (compileSdk 34) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
+| Android | API 21 (compileSdk 35) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
 | iOS | 12.0 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
 | macOS | 10.13 | `.bundle` (Universal) | arm64 + x86_64 |
 | Windows | 11 | `.dll` (UWP) | x64 *(Under Construction)* |
@@ -49,10 +49,10 @@ graph TD
 
 ## Requirements
 
-- **Unity 2021.2** or later (C# 8.0 switch expressions are used)
-- **Android**: Android SDK, Java JDK
+- **Unity 2022.3 LTS** or later
+- **Android**: Android SDK, Java JDK 17+
 - **iOS/macOS**: Xcode command line tools (clang++, xcodebuild, lipo)
-- **Windows**: Windows 10 with UWP Bluetooth API support
+- **Windows**: Windows 11 with UWP Bluetooth API support
 
 ## Installation
 
@@ -205,7 +205,7 @@ make help
 | Platform | Tools |
 |----------|-------|
 | iOS / macOS | Xcode command line tools (`clang++`, `xcodebuild`, `lipo`) |
-| Android | Java JDK, Gradle (or use included `gradlew`; Gradle 9.3.0, AGP 8.7.3) |
+| Android | Java JDK 17+, Gradle (or use included `gradlew`; Gradle 9.3.0, AGP 8.7.3) |
 
 ## Samples
 
