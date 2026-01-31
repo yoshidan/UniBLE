@@ -171,8 +171,15 @@ static UniBleManager* g_sharedInstance = nil;
     }
 
     CBService* targetService = nil;
+    CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
     for (CBService* service in peripheral.services) {
-        if ([[service.UUID.UUIDString lowercaseString] isEqualToString:[serviceUuid lowercaseString]]) {
+        BOOL serviceMatches = NO;
+        if (targetServiceUuid) {
+            serviceMatches = [service.UUID isEqual:targetServiceUuid];
+        } else {
+            serviceMatches = [[service.UUID.UUIDString lowercaseString] isEqualToString:[serviceUuid lowercaseString]];
+        }
+        if (serviceMatches) {
             targetService = service;
             break;
         }
@@ -186,7 +193,7 @@ static UniBleManager* g_sharedInstance = nil;
     }
 
     NSMutableDictionary* callbacks = [self callbacksForPeripheral:deviceId];
-    NSString* key = [NSString stringWithFormat:@"characteristicDiscoveryCallback_%@", serviceUuid];
+    NSString* key = [NSString stringWithFormat:@"characteristicDiscoveryCallback_%@", targetService.UUID.UUIDString];
     callbacks[key] = [NSValue valueWithPointer:(void*)callback];
 
     [peripheral discoverCharacteristics:nil forService:targetService];
@@ -294,14 +301,40 @@ static UniBleManager* g_sharedInstance = nil;
     return callbacks;
 }
 
+- (CBUUID*)cbUuidFromString:(NSString*)uuidString {
+    if (!uuidString) {
+        return nil;
+    }
+    NSString* trimmed = [uuidString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (trimmed.length == 0) {
+        return nil;
+    }
+    return [CBUUID UUIDWithString:trimmed];
+}
+
 - (CBCharacteristic*)findCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid {
     CBPeripheral* peripheral = self.peripherals[deviceId];
     if (!peripheral) return nil;
 
+    CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
+    CBUUID* targetCharacteristicUuid = [self cbUuidFromString:characteristicUuid];
+
     for (CBService* service in peripheral.services) {
-        if ([[service.UUID.UUIDString lowercaseString] isEqualToString:[serviceUuid lowercaseString]]) {
+        BOOL serviceMatches = NO;
+        if (targetServiceUuid) {
+            serviceMatches = [service.UUID isEqual:targetServiceUuid];
+        } else {
+            serviceMatches = [[service.UUID.UUIDString lowercaseString] isEqualToString:[serviceUuid lowercaseString]];
+        }
+        if (serviceMatches) {
             for (CBCharacteristic* characteristic in service.characteristics) {
-                if ([[characteristic.UUID.UUIDString lowercaseString] isEqualToString:[characteristicUuid lowercaseString]]) {
+                BOOL characteristicMatches = NO;
+                if (targetCharacteristicUuid) {
+                    characteristicMatches = [characteristic.UUID isEqual:targetCharacteristicUuid];
+                } else {
+                    characteristicMatches = [[characteristic.UUID.UUIDString lowercaseString] isEqualToString:[characteristicUuid lowercaseString]];
+                }
+                if (characteristicMatches) {
                     return characteristic;
                 }
             }
