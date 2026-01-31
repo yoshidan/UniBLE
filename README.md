@@ -43,7 +43,7 @@ graph TD
 | Android | API 23 (compileSdk 35) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
 | iOS | 12.0 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
 | macOS | 10.13 | `.bundle` (Universal) | arm64 + x86_64 |
-| Windows | 11 | `.dll` (UWP) | x64 *(Under Construction)* |
+| Windows | 11 | `.dll` (Uner Construction) | x64 *(Under Construction)* |
 
 > **Note:** Windows support is under construction. Pre-built `.dll` is included but no build script is provided.
 
@@ -52,7 +52,6 @@ graph TD
 - **Unity 2022.3 LTS** or later
 - **Android**: Android SDK, Java JDK 17+
 - **iOS/macOS**: Xcode command line tools (clang++, xcodebuild, lipo)
-- **Windows**: Windows 11 with UWP Bluetooth API support
 
 ## Installation
 
