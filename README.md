@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Unity 2022.3 LTS+](https://img.shields.io/badge/Unity-2022.3%20LTS%2B-black.svg)](https://unity.com/)
-[![Android](https://img.shields.io/badge/Android-API%2021%2B-3DDC84.svg)](#supported-platforms)
+[![Android](https://img.shields.io/badge/Android-API%2023%2B-3DDC84.svg)](#supported-platforms)
 [![iOS](https://img.shields.io/badge/iOS-12.0%2B-000000.svg)](#supported-platforms)
 [![macOS](https://img.shields.io/badge/macOS-10.13%2B-999999.svg)](#supported-platforms)
 
@@ -40,7 +40,7 @@ graph TD
 
 | Platform | Min Version | Output Format | Architecture |
 |----------|------------|---------------|--------------|
-| Android | API 21 (compileSdk 35) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
+| Android | API 23 (compileSdk 35) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
 | iOS | 12.0 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
 | macOS | 10.13 | `.bundle` (Universal) | arm64 + x86_64 |
 | Windows | 11 | `.dll` (UWP) | x64 *(Under Construction)* |
