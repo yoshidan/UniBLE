@@ -16,12 +16,10 @@ graph TD
     B --> C["BleManager<br/>Platform auto-detection"]
     C --> D["AppleBleAdapter<br/>CoreBluetooth"]
     C --> E["AndroidBleAdapter<br/>Android BLE API"]
-    C -.-> F["🚧 WindowsBleAdapter<br/>UWP Bluetooth<br/>(Under Construction)"]
+    C -.-> F["🚧 Windows<br/>(Under Construction)"]
     D --> G["Native Plugin<br/>Obj-C++ (.bundle / .a)"]
     E --> H["Native Plugin<br/>Java (.aar)"]
-    F -.-> I["🚧 Native Plugin<br/>C# (.dll)<br/>(Under Construction)"]
     style F fill:#888,stroke:#666,color:#fff
-    style I fill:#888,stroke:#666,color:#fff
 ```
 
 ## Features
