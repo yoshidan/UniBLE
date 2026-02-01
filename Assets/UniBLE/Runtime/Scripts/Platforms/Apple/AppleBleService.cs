@@ -75,7 +75,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_DiscoverCharacteristics(_deviceId, Uuid.ToString(), _characteristicDiscoveryCallback);
+                UniBle_DiscoverCharacteristics(_deviceId, Uuid.ToFullString(), _characteristicDiscoveryCallback);
             });
 
             return _discoverCharacteristicsTcs.Task;

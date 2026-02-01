@@ -27,12 +27,18 @@ namespace UniBLE
             switch (uuid.Length)
             {
                 case 4:
+                    if (!IsHex(uuid))
+                        throw new ArgumentException($"Invalid UUID format: \"{uuid}\"", nameof(uuid));
                     _fullUuid = BaseUuidPrefix + uuid + BaseUuidSuffix;
                     break;
                 case 8:
+                    if (!IsHex(uuid))
+                        throw new ArgumentException($"Invalid UUID format: \"{uuid}\"", nameof(uuid));
                     _fullUuid = uuid + BaseUuidSuffix;
                     break;
                 case 36:
+                    if (!Guid.TryParseExact(uuid, "D", out _))
+                        throw new ArgumentException($"Invalid UUID format: \"{uuid}\"", nameof(uuid));
                     _fullUuid = uuid;
                     break;
                 default:
@@ -64,7 +70,9 @@ namespace UniBLE
         /// </summary>
         public string ToFullString()
         {
-            return _fullUuid ?? "00000000-0000-0000-0000-000000000000";
+            if (_fullUuid == null)
+                throw new InvalidOperationException("BleUuid is uninitialized");
+            return _fullUuid;
         }
 
         public bool Equals(BleUuid other)
@@ -91,5 +99,18 @@ namespace UniBLE
         public static bool operator !=(BleUuid left, BleUuid right) => !left.Equals(right);
 
         public static implicit operator BleUuid(string uuid) => new BleUuid(uuid);
+
+        private static bool IsHex(string value)
+        {
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                bool isDigit = c >= '0' && c <= '9';
+                bool isLowerHex = c >= 'a' && c <= 'f';
+                if (!isDigit && !isLowerHex)
+                    return false;
+            }
+            return true;
+        }
     }
 }

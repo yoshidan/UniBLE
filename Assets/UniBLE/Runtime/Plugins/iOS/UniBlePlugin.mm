@@ -165,14 +165,15 @@ static UniBleManager* g_sharedInstance = nil;
 
     CBService* targetService = nil;
     CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
-    for (CBService* service in peripheral.services) {
-        BOOL serviceMatches = NO;
-        if (targetServiceUuid) {
-            serviceMatches = [service.UUID isEqual:targetServiceUuid];
-        } else {
-            serviceMatches = [[service.UUID.UUIDString lowercaseString] isEqualToString:[serviceUuid lowercaseString]];
+    if (!targetServiceUuid) {
+        if (callback) {
+            NSString* errorMsg = [self invalidUuidMessage:serviceUuid label:@"service"];
+            callback([deviceId UTF8String], [serviceUuid UTF8String], nil, [errorMsg UTF8String]);
         }
-        if (serviceMatches) {
+        return;
+    }
+    for (CBService* service in peripheral.services) {
+        if ([service.UUID isEqual:targetServiceUuid]) {
             targetService = service;
             break;
         }
@@ -193,6 +194,17 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)readCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid callback:(ReadCallback)callback {
+    CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
+    CBUUID* targetCharacteristicUuid = [self cbUuidFromString:characteristicUuid];
+    if (!targetServiceUuid || !targetCharacteristicUuid) {
+        if (callback) {
+            NSString* errorMsg = !targetServiceUuid
+                ? [self invalidUuidMessage:serviceUuid label:@"service"]
+                : [self invalidUuidMessage:characteristicUuid label:@"characteristic"];
+            callback([deviceId UTF8String], [serviceUuid UTF8String], [characteristicUuid UTF8String], nil, 0, [errorMsg UTF8String]);
+        }
+        return;
+    }
     CBCharacteristic* characteristic = [self findCharacteristicForPeripheral:deviceId serviceUuid:serviceUuid characteristicUuid:characteristicUuid];
     if (!characteristic) {
         if (callback) {
@@ -212,6 +224,17 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)writeCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid data:(NSData*)data withResponse:(BOOL)withResponse callback:(WriteCallback)callback {
+    CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
+    CBUUID* targetCharacteristicUuid = [self cbUuidFromString:characteristicUuid];
+    if (!targetServiceUuid || !targetCharacteristicUuid) {
+        if (callback) {
+            NSString* errorMsg = !targetServiceUuid
+                ? [self invalidUuidMessage:serviceUuid label:@"service"]
+                : [self invalidUuidMessage:characteristicUuid label:@"characteristic"];
+            callback([deviceId UTF8String], [serviceUuid UTF8String], [characteristicUuid UTF8String], [errorMsg UTF8String]);
+        }
+        return;
+    }
     CBCharacteristic* characteristic = [self findCharacteristicForPeripheral:deviceId serviceUuid:serviceUuid characteristicUuid:characteristicUuid];
     if (!characteristic) {
         if (callback) {
@@ -238,6 +261,17 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)subscribeToCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid notifyCallback:(NotifyCallback)notifyCallback resultCallback:(SubscribeCallback)resultCallback {
+    CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
+    CBUUID* targetCharacteristicUuid = [self cbUuidFromString:characteristicUuid];
+    if (!targetServiceUuid || !targetCharacteristicUuid) {
+        if (resultCallback) {
+            NSString* errorMsg = !targetServiceUuid
+                ? [self invalidUuidMessage:serviceUuid label:@"service"]
+                : [self invalidUuidMessage:characteristicUuid label:@"characteristic"];
+            resultCallback([deviceId UTF8String], [serviceUuid UTF8String], [characteristicUuid UTF8String], [errorMsg UTF8String]);
+        }
+        return;
+    }
     CBCharacteristic* characteristic = [self findCharacteristicForPeripheral:deviceId serviceUuid:serviceUuid characteristicUuid:characteristicUuid];
     if (!characteristic) {
         if (resultCallback) {
@@ -260,6 +294,17 @@ static UniBleManager* g_sharedInstance = nil;
 }
 
 - (void)unsubscribeFromCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid callback:(SubscribeCallback)callback {
+    CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
+    CBUUID* targetCharacteristicUuid = [self cbUuidFromString:characteristicUuid];
+    if (!targetServiceUuid || !targetCharacteristicUuid) {
+        if (callback) {
+            NSString* errorMsg = !targetServiceUuid
+                ? [self invalidUuidMessage:serviceUuid label:@"service"]
+                : [self invalidUuidMessage:characteristicUuid label:@"characteristic"];
+            callback([deviceId UTF8String], [serviceUuid UTF8String], [characteristicUuid UTF8String], [errorMsg UTF8String]);
+        }
+        return;
+    }
     CBCharacteristic* characteristic = [self findCharacteristicForPeripheral:deviceId serviceUuid:serviceUuid characteristicUuid:characteristicUuid];
     if (!characteristic) {
         if (callback) {
@@ -305,29 +350,25 @@ static UniBleManager* g_sharedInstance = nil;
     return [CBUUID UUIDWithString:trimmed];
 }
 
+- (NSString*)invalidUuidMessage:(NSString*)uuidString label:(NSString*)label {
+    NSString* value = uuidString ? uuidString : @"(null)";
+    return [NSString stringWithFormat:@"Invalid %@ UUID: %@", label, value];
+}
+
 - (CBCharacteristic*)findCharacteristicForPeripheral:(NSString*)deviceId serviceUuid:(NSString*)serviceUuid characteristicUuid:(NSString*)characteristicUuid {
     CBPeripheral* peripheral = self.peripherals[deviceId];
     if (!peripheral) return nil;
 
     CBUUID* targetServiceUuid = [self cbUuidFromString:serviceUuid];
     CBUUID* targetCharacteristicUuid = [self cbUuidFromString:characteristicUuid];
+    if (!targetServiceUuid || !targetCharacteristicUuid) {
+        return nil;
+    }
 
     for (CBService* service in peripheral.services) {
-        BOOL serviceMatches = NO;
-        if (targetServiceUuid) {
-            serviceMatches = [service.UUID isEqual:targetServiceUuid];
-        } else {
-            serviceMatches = [[service.UUID.UUIDString lowercaseString] isEqualToString:[serviceUuid lowercaseString]];
-        }
-        if (serviceMatches) {
+        if ([service.UUID isEqual:targetServiceUuid]) {
             for (CBCharacteristic* characteristic in service.characteristics) {
-                BOOL characteristicMatches = NO;
-                if (targetCharacteristicUuid) {
-                    characteristicMatches = [characteristic.UUID isEqual:targetCharacteristicUuid];
-                } else {
-                    characteristicMatches = [[characteristic.UUID.UUIDString lowercaseString] isEqualToString:[characteristicUuid lowercaseString]];
-                }
-                if (characteristicMatches) {
+                if ([characteristic.UUID isEqual:targetCharacteristicUuid]) {
                     return characteristic;
                 }
             }

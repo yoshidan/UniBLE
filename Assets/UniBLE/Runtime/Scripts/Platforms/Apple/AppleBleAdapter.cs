@@ -133,7 +133,7 @@ namespace UniBLE.Platforms.Apple
                 var list = new List<BleUuid>(serviceUuids);
                 if (list.Count > 0)
                 {
-                    uuidsJson = "[" + string.Join(",", list.ConvertAll(u => $"\"{u.ToString()}\"")) + "]";
+                    uuidsJson = "[" + string.Join(",", list.ConvertAll(u => $"\"{u.ToFullString()}\"")) + "]";
                 }
             }
 

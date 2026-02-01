@@ -107,7 +107,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_ReadCharacteristic(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), _readCallback);
+                UniBle_ReadCharacteristic(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), _readCallback);
             });
 
             return _readTcs.Task;
@@ -127,7 +127,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_WriteCharacteristic(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), data, data.Length, withResponse, _writeCallback);
+                UniBle_WriteCharacteristic(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), data, data.Length, withResponse, _writeCallback);
             });
 
             return _writeTcs.Task;
@@ -147,7 +147,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_Subscribe(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), _notifyCallback, _subscribeCallback);
+                UniBle_Subscribe(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), _notifyCallback, _subscribeCallback);
             });
 
             return _subscribeTcs.Task;
@@ -162,7 +162,7 @@ namespace UniBLE.Platforms.Apple
 
             MainThreadDispatcher.Enqueue(() =>
             {
-                UniBle_Unsubscribe(_deviceId, _serviceUuid.ToString(), Uuid.ToString(), _unsubscribeCallback);
+                UniBle_Unsubscribe(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), _unsubscribeCallback);
             });
 
             return _unsubscribeTcs.Task;
