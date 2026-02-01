@@ -14,6 +14,7 @@ namespace UniBLE.Platforms.Android
     public class AndroidBleAdapter : IBleAdapter
     {
         private readonly AndroidJavaObject _plugin;
+        private readonly IBleDispatcher _dispatcher;
         private readonly Dictionary<string, AndroidBleDevice> _discoveredDevices = new Dictionary<string, AndroidBleDevice>();
         private readonly Dictionary<string, AndroidBleDevice> _activeDevices = new Dictionary<string, AndroidBleDevice>();
         private Action<IBleDevice> _onDeviceDiscovered;
@@ -23,8 +24,9 @@ namespace UniBLE.Platforms.Android
         public BleAdapterState State => _state;
         public event Action<BleAdapterState> OnStateChanged;
 
-        public AndroidBleAdapter()
+        public AndroidBleAdapter(IBleDispatcher dispatcher)
         {
+            _dispatcher = dispatcher;
             using (var pluginClass = new AndroidJavaClass("com.unible.UniBlePlugin"))
             {
                 _plugin = pluginClass.CallStatic<AndroidJavaObject>("getInstance");
@@ -51,7 +53,7 @@ namespace UniBLE.Platforms.Android
 
             cancellationToken.Register(() => tcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 var permissions = new List<string>();
 
@@ -127,7 +129,7 @@ namespace UniBLE.Platforms.Android
                 uuidArray = list.ConvertAll(u => u.ToFullString()).ToArray();
             }
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("startScan", uuidArray);
             });
@@ -148,7 +150,7 @@ namespace UniBLE.Platforms.Android
             }
 
             _isScanning = false;
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("stopScan");
             });
@@ -162,7 +164,7 @@ namespace UniBLE.Platforms.Android
 
             cancellationToken.Register(() => tcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 if (_activeDevices.TryGetValue(deviceId, out var existingDevice))
                 {
@@ -177,7 +179,7 @@ namespace UniBLE.Platforms.Android
                     name = androidDevice.Call<string>("getName") ?? "";
                 }
 
-                var device = new AndroidBleDevice(deviceId, name, _plugin);
+                var device = new AndroidBleDevice(deviceId, name, _plugin, _dispatcher);
                 _activeDevices[deviceId] = device;
                 tcs.TrySetResult(device);
             });
@@ -191,7 +193,7 @@ namespace UniBLE.Platforms.Android
             {
                 if (!_activeDevices.TryGetValue(deviceId, out device))
                 {
-                    device = new AndroidBleDevice(deviceId, deviceName, _plugin);
+                    device = new AndroidBleDevice(deviceId, deviceName, _plugin, _dispatcher);
                     _activeDevices[deviceId] = device;
                 }
                 _discoveredDevices[deviceId] = device;
@@ -245,7 +247,7 @@ namespace UniBLE.Platforms.Android
             // Called from Java
             public void onDeviceDiscovered(string deviceId, string deviceName, AndroidJavaObject device)
             {
-                MainThreadDispatcher.Enqueue(() =>
+                _adapter._dispatcher.Dispatch(() =>
                 {
                     _adapter.OnDeviceDiscovered(deviceId, deviceName);
                 });
@@ -254,7 +256,7 @@ namespace UniBLE.Platforms.Android
             // Called from Java
             public void onStateChanged(int state)
             {
-                MainThreadDispatcher.Enqueue(() =>
+                _adapter._dispatcher.Dispatch(() =>
                 {
                     _adapter.OnAdapterStateChanged(state);
                 });
@@ -263,7 +265,7 @@ namespace UniBLE.Platforms.Android
             // Called from Java (Bug 2: disconnect notification)
             public void onDeviceDisconnected(string deviceId, string error)
             {
-                MainThreadDispatcher.Enqueue(() =>
+                _adapter._dispatcher.Dispatch(() =>
                 {
                     _adapter.OnDeviceDisconnected(deviceId, error);
                 });

@@ -16,6 +16,7 @@ namespace UniBLE.Platforms.Apple
     {
         private static readonly Dictionary<string, AppleBleDevice> _devices = new Dictionary<string, AppleBleDevice>();
         private readonly Dictionary<BleUuid, AppleBleService> _services = new Dictionary<BleUuid, AppleBleService>();
+        private readonly IBleDispatcher _dispatcher;
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
         private TaskCompletionSource<bool> _disconnectTcs;
@@ -54,10 +55,11 @@ namespace UniBLE.Platforms.Apple
             _serviceDiscoveryCallback = OnNativeServicesDiscovered;
         }
 
-        internal AppleBleDevice(string id, string name)
+        internal AppleBleDevice(string id, string name, IBleDispatcher dispatcher)
         {
             Id = id;
             Name = name ?? "Unknown";
+            _dispatcher = dispatcher;
             _devices[id] = this;
         }
 
@@ -75,7 +77,7 @@ namespace UniBLE.Platforms.Apple
             _connectionState = BleConnectionState.Connecting;
             OnConnectionStateChanged?.Invoke(_connectionState);
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_Connect(Id, _connectionCallback);
             });
@@ -97,7 +99,7 @@ namespace UniBLE.Platforms.Apple
             _connectionState = BleConnectionState.Disconnecting;
             OnConnectionStateChanged?.Invoke(_connectionState);
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_Disconnect(Id, _disconnectCallback);
             });
@@ -116,7 +118,7 @@ namespace UniBLE.Platforms.Apple
             _discoverServicesTcs = new TaskCompletionSource<IReadOnlyList<IBleService>>();
             cancellationToken.Register(() => _discoverServicesTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_DiscoverServices(Id, _serviceDiscoveryCallback);
             });
@@ -140,7 +142,8 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(ConnectionCallback))]
         private static void OnNativeConnectionResult(string deviceId, bool success, string error)
         {
-            MainThreadDispatcher.Enqueue(() =>
+            if (!_devices.TryGetValue(deviceId, out var d)) return;
+            d._dispatcher.Dispatch(() =>
             {
                 if (!_devices.TryGetValue(deviceId, out var device)) return;
 
@@ -164,7 +167,8 @@ namespace UniBLE.Platforms.Apple
         {
             // This is called only for explicit DisconnectAsync calls
             // State change is handled by OnGlobalDisconnect
-            MainThreadDispatcher.Enqueue(() =>
+            if (!_devices.TryGetValue(deviceId, out var d)) return;
+            d._dispatcher.Dispatch(() =>
             {
                 if (!_devices.TryGetValue(deviceId, out var device)) return;
 
@@ -181,7 +185,8 @@ namespace UniBLE.Platforms.Apple
         internal static void OnGlobalDisconnect(string deviceId, string error)
         {
             // This is called for ALL disconnections (explicit and unexpected)
-            MainThreadDispatcher.Enqueue(() =>
+            if (!_devices.TryGetValue(deviceId, out var d)) return;
+            d._dispatcher.Dispatch(() =>
             {
                 if (!_devices.TryGetValue(deviceId, out var device)) return;
 
@@ -202,7 +207,8 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(ServiceDiscoveryCallback))]
         private static void OnNativeServicesDiscovered(string deviceId, string servicesJson, string error)
         {
-            MainThreadDispatcher.Enqueue(() =>
+            if (!_devices.TryGetValue(deviceId, out var d)) return;
+            d._dispatcher.Dispatch(() =>
             {
                 if (!_devices.TryGetValue(deviceId, out var device)) return;
 
@@ -222,7 +228,7 @@ namespace UniBLE.Platforms.Apple
                     foreach (var uuidStr in uuidStrs)
                     {
                         var uuid = new BleUuid(uuidStr);
-                        var service = new AppleBleService(uuid, deviceId);
+                        var service = new AppleBleService(uuid, deviceId, device._dispatcher);
                         device._services[uuid] = service;
                         result.Add(service);
                     }

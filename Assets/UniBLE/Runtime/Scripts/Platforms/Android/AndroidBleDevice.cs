@@ -13,6 +13,7 @@ namespace UniBLE.Platforms.Android
     public class AndroidBleDevice : IBleDevice
     {
         private readonly AndroidJavaObject _plugin;
+        private readonly IBleDispatcher _dispatcher;
         private readonly Dictionary<BleUuid, AndroidBleService> _services = new Dictionary<BleUuid, AndroidBleService>();
         private BleConnectionState _connectionState = BleConnectionState.Disconnected;
         private TaskCompletionSource<bool> _connectTcs;
@@ -24,11 +25,12 @@ namespace UniBLE.Platforms.Android
         public BleConnectionState ConnectionState => _connectionState;
         public event Action<BleConnectionState> OnConnectionStateChanged;
 
-        internal AndroidBleDevice(string id, string name, AndroidJavaObject plugin)
+        internal AndroidBleDevice(string id, string name, AndroidJavaObject plugin, IBleDispatcher dispatcher)
         {
             Id = id;
             Name = name ?? "Unknown";
             _plugin = plugin;
+            _dispatcher = dispatcher;
         }
 
         public Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -45,7 +47,7 @@ namespace UniBLE.Platforms.Android
             _connectionState = BleConnectionState.Connecting;
             OnConnectionStateChanged?.Invoke(_connectionState);
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("connect", Id, new ConnectionCallback(this));
             });
@@ -68,7 +70,7 @@ namespace UniBLE.Platforms.Android
             _connectionState = BleConnectionState.Disconnecting;
             OnConnectionStateChanged?.Invoke(_connectionState);
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("disconnect", Id);
             });
@@ -87,7 +89,7 @@ namespace UniBLE.Platforms.Android
             _discoverServicesTcs = new TaskCompletionSource<IReadOnlyList<IBleService>>();
             cancellationToken.Register(() => _discoverServicesTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("discoverServices", Id, new ServiceDiscoveryCallback(this));
             });
@@ -161,7 +163,7 @@ namespace UniBLE.Platforms.Android
                 {
                     var uuidStr = service.Call<AndroidJavaObject>("getUuid").Call<string>("toString");
                     var uuid = new BleUuid(uuidStr);
-                    var bleService = new AndroidBleService(uuid, _plugin, Id);
+                    var bleService = new AndroidBleService(uuid, _plugin, Id, _dispatcher);
                     _services[uuid] = bleService;
                     result.Add(bleService);
                 }
@@ -190,19 +192,19 @@ namespace UniBLE.Platforms.Android
             // Called from Java
             public void onConnected()
             {
-                MainThreadDispatcher.Enqueue(() => _device.OnConnected());
+                _device._dispatcher.Dispatch(() => _device.OnConnected());
             }
 
             // Called from Java
             public void onConnectionFailed(string error)
             {
-                MainThreadDispatcher.Enqueue(() => _device.OnConnectionFailed(error));
+                _device._dispatcher.Dispatch(() => _device.OnConnectionFailed(error));
             }
 
             // Called from Java (connection-phase disconnect)
             public void onDisconnected()
             {
-                MainThreadDispatcher.Enqueue(() => _device.OnDisconnected());
+                _device._dispatcher.Dispatch(() => _device.OnDisconnected());
             }
         }
 
@@ -221,13 +223,13 @@ namespace UniBLE.Platforms.Android
             // Called from Java
             public void onServicesDiscovered(AndroidJavaObject[] services)
             {
-                MainThreadDispatcher.Enqueue(() => _device.OnServicesDiscovered(services));
+                _device._dispatcher.Dispatch(() => _device.OnServicesDiscovered(services));
             }
 
             // Called from Java
             public void onServiceDiscoveryFailed(string error)
             {
-                MainThreadDispatcher.Enqueue(() => _device.OnServiceDiscoveryFailed(error));
+                _device._dispatcher.Dispatch(() => _device.OnServiceDiscoveryFailed(error));
             }
         }
     }

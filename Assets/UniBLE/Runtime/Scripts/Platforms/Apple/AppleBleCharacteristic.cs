@@ -17,6 +17,7 @@ namespace UniBLE.Platforms.Apple
 
         private readonly string _deviceId;
         private readonly BleUuid _serviceUuid;
+        private readonly IBleDispatcher _dispatcher;
         private TaskCompletionSource<byte[]> _readTcs;
         private TaskCompletionSource<bool> _writeTcs;
         private TaskCompletionSource<bool> _subscribeTcs;
@@ -62,12 +63,13 @@ namespace UniBLE.Platforms.Apple
             _unsubscribeCallback = OnNativeUnsubscribeResult;
         }
 
-        internal AppleBleCharacteristic(BleUuid uuid, BleCharacteristicProperties properties, string deviceId, BleUuid serviceUuid)
+        internal AppleBleCharacteristic(BleUuid uuid, BleCharacteristicProperties properties, string deviceId, BleUuid serviceUuid, IBleDispatcher dispatcher)
         {
             Uuid = uuid;
             Properties = properties;
             _deviceId = deviceId;
             _serviceUuid = serviceUuid;
+            _dispatcher = dispatcher;
             var key = GetKey(deviceId, serviceUuid.ToFullString(), uuid.ToFullString());
             _characteristics[key] = this;
         }
@@ -105,7 +107,7 @@ namespace UniBLE.Platforms.Apple
             _readTcs = new TaskCompletionSource<byte[]>();
             cancellationToken.Register(() => _readTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_ReadCharacteristic(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), _readCallback);
             });
@@ -125,7 +127,7 @@ namespace UniBLE.Platforms.Apple
             _writeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _writeTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_WriteCharacteristic(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), data, data.Length, withResponse, _writeCallback);
             });
@@ -145,7 +147,7 @@ namespace UniBLE.Platforms.Apple
             _subscribeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _subscribeTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_Subscribe(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), _notifyCallback, _subscribeCallback);
             });
@@ -160,7 +162,7 @@ namespace UniBLE.Platforms.Apple
             _unsubscribeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _unsubscribeTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_Unsubscribe(_deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), _unsubscribeCallback);
             });
@@ -178,7 +180,9 @@ namespace UniBLE.Platforms.Apple
                 Marshal.Copy(data, dataArray, 0, dataLength);
             }
 
-            MainThreadDispatcher.Enqueue(() =>
+            var key0 = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
+            if (!_characteristics.TryGetValue(key0, out var c)) return;
+            c._dispatcher.Dispatch(() =>
             {
                 var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
@@ -196,7 +200,9 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(WriteCallback))]
         private static void OnNativeWriteResult(string deviceId, string serviceUuid, string characteristicUuid, string error)
         {
-            MainThreadDispatcher.Enqueue(() =>
+            var key0 = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
+            if (!_characteristics.TryGetValue(key0, out var c)) return;
+            c._dispatcher.Dispatch(() =>
             {
                 var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
@@ -216,7 +222,7 @@ namespace UniBLE.Platforms.Apple
         // immediately so it remains valid after the native call returns.
         // Note: The callback fires on the CoreBluetooth dispatch queue thread, NOT the Unity
         // main thread. If the user needs Unity API access, they should use
-        // MainThreadDispatcher.Enqueue() in their handler.
+        // the main thread dispatcher in their handler.
         [MonoPInvokeCallback(typeof(NotifyCallback))]
         private static void OnNativeNotify(string deviceId, string serviceUuid, string characteristicUuid, IntPtr data, int dataLength)
         {
@@ -235,7 +241,9 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(SubscribeCallback))]
         private static void OnNativeSubscribeResult(string deviceId, string serviceUuid, string characteristicUuid, string error)
         {
-            MainThreadDispatcher.Enqueue(() =>
+            var key0 = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
+            if (!_characteristics.TryGetValue(key0, out var c)) return;
+            c._dispatcher.Dispatch(() =>
             {
                 var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;
@@ -253,7 +261,9 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(SubscribeCallback))]
         private static void OnNativeUnsubscribeResult(string deviceId, string serviceUuid, string characteristicUuid, string error)
         {
-            MainThreadDispatcher.Enqueue(() =>
+            var key0 = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
+            if (!_characteristics.TryGetValue(key0, out var c)) return;
+            c._dispatcher.Dispatch(() =>
             {
                 var key = GetKey(deviceId, new BleUuid(serviceUuid).ToFullString(), new BleUuid(characteristicUuid).ToFullString());
                 if (!_characteristics.TryGetValue(key, out var characteristic)) return;

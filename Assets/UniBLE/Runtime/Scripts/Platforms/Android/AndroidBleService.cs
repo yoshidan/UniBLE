@@ -14,15 +14,17 @@ namespace UniBLE.Platforms.Android
     {
         private readonly AndroidJavaObject _plugin;
         private readonly string _deviceId;
+        private readonly IBleDispatcher _dispatcher;
         private readonly Dictionary<BleUuid, AndroidBleCharacteristic> _characteristics = new Dictionary<BleUuid, AndroidBleCharacteristic>();
 
         public BleUuid Uuid { get; }
 
-        internal AndroidBleService(BleUuid uuid, AndroidJavaObject plugin, string deviceId)
+        internal AndroidBleService(BleUuid uuid, AndroidJavaObject plugin, string deviceId, IBleDispatcher dispatcher)
         {
             Uuid = uuid;
             _plugin = plugin;
             _deviceId = deviceId;
+            _dispatcher = dispatcher;
         }
 
         public Task<IReadOnlyList<IBleCharacteristic>> GetCharacteristicsAsync(CancellationToken cancellationToken = default)
@@ -39,7 +41,7 @@ namespace UniBLE.Platforms.Android
                     var uuidStr = characteristic.Call<AndroidJavaObject>("getUuid").Call<string>("toString");
                     var uuid = new BleUuid(uuidStr);
                     var properties = characteristic.Call<int>("getProperties");
-                    var bleCharacteristic = new AndroidBleCharacteristic(uuid, properties, _plugin, _deviceId, Uuid);
+                    var bleCharacteristic = new AndroidBleCharacteristic(uuid, properties, _plugin, _deviceId, Uuid, _dispatcher);
                     _characteristics[uuid] = bleCharacteristic;
                     result.Add(bleCharacteristic);
                 }

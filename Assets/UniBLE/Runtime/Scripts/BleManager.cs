@@ -12,6 +12,18 @@ namespace UniBLE
         private static IBleAdapter _adapter;
         private static readonly object _lock = new object();
         private static bool _debugLogging;
+        private static IBleDispatcher _dispatcher;
+
+        /// <summary>
+        /// Get or set the dispatcher used for BLE callbacks.
+        /// Set this before accessing the Adapter property.
+        /// When null (default), MainThreadDispatcher is used.
+        /// </summary>
+        public static IBleDispatcher Dispatcher
+        {
+            get => _dispatcher;
+            set => _dispatcher = value;
+        }
 
         /// <summary>
         /// Enable or disable debug logging for the BLE library.
@@ -49,12 +61,13 @@ namespace UniBLE
         /// </summary>
         private static IBleAdapter CreateAdapter()
         {
+            var dispatcher = _dispatcher ?? MainThreadDispatcher.Instance;
 #if UNITY_ANDROID && !UNITY_EDITOR
-            return new Platforms.Android.AndroidBleAdapter();
+            return new Platforms.Android.AndroidBleAdapter(dispatcher);
 #elif UNITY_IOS && !UNITY_EDITOR
-            return new Platforms.Apple.AppleBleAdapter();
+            return new Platforms.Apple.AppleBleAdapter(dispatcher);
 #elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
-            return new Platforms.Apple.AppleBleAdapter();
+            return new Platforms.Apple.AppleBleAdapter(dispatcher);
 #elif UNITY_STANDALONE_WIN && !UNITY_EDITOR
             throw new BleException(
                 BleErrorCode.NotSupported,

@@ -7,9 +7,22 @@ namespace UniBLE
     /// <summary>
     /// Utility for dispatching actions to the Unity main thread
     /// </summary>
-    public class MainThreadDispatcher : MonoBehaviour
+    public class MainThreadDispatcher : MonoBehaviour, IBleDispatcher
     {
         private static MainThreadDispatcher _instance;
+
+        /// <summary>
+        /// Returns the singleton instance, initializing if necessary.
+        /// </summary>
+        public static MainThreadDispatcher Instance
+        {
+            get
+            {
+                if (!_isInitialized) Initialize();
+                return _instance;
+            }
+        }
+
         private static readonly object _lock = new object();
         private static readonly Queue<Action> _actionQueue = new Queue<Action>();
         private static volatile bool _isInitialized;
@@ -40,6 +53,11 @@ namespace UniBLE
                 _actionQueue.Enqueue(action);
             }
         }
+
+        /// <summary>
+        /// IBleDispatcher implementation — delegates to Enqueue
+        /// </summary>
+        public void Dispatch(Action action) => Enqueue(action);
 
         private void Update()
         {

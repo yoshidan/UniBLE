@@ -14,6 +14,7 @@ namespace UniBLE.Platforms.Apple
     public class AppleBleAdapter : IBleAdapter
     {
         private static AppleBleAdapter _instance;
+        private readonly IBleDispatcher _dispatcher;
         private readonly Dictionary<string, AppleBleDevice> _discoveredDevices = new Dictionary<string, AppleBleDevice>();
         private Action<IBleDevice> _onDeviceDiscovered;
         private BleAdapterState _state = BleAdapterState.Unknown;
@@ -64,9 +65,10 @@ namespace UniBLE.Platforms.Apple
             }
         }
 
-        public AppleBleAdapter()
+        public AppleBleAdapter(IBleDispatcher dispatcher)
         {
             Log("AppleBleAdapter constructor start");
+            _dispatcher = dispatcher;
             _instance = this;
             _stateReadyTcs = new TaskCompletionSource<bool>();
             _stateChangedCallback = OnNativeStateChanged;
@@ -158,7 +160,7 @@ namespace UniBLE.Platforms.Apple
             if (!_isScanning) return Task.CompletedTask;
 
             _isScanning = false;
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_StopScan();
             });
@@ -174,7 +176,7 @@ namespace UniBLE.Platforms.Apple
             }
 
             // Create a new device for known device connection
-            var newDevice = new AppleBleDevice(deviceId, "Unknown");
+            var newDevice = new AppleBleDevice(deviceId, "Unknown", _dispatcher);
             _discoveredDevices[deviceId] = newDevice;
             return Task.FromResult<IBleDevice>(newDevice);
         }
@@ -183,7 +185,7 @@ namespace UniBLE.Platforms.Apple
         private static void OnNativeStateChanged(int state)
         {
             Log($"OnNativeStateChanged called with state: {state}");
-            MainThreadDispatcher.Enqueue(() =>
+            _instance?._dispatcher?.Dispatch(() =>
             {
                 Log($"OnNativeStateChanged MainThread, _instance null: {_instance == null}");
                 if (_instance == null) return;
@@ -222,13 +224,13 @@ namespace UniBLE.Platforms.Apple
                 Log($"Discovered: {deviceName} ({deviceId})");
                 Log($"Advertised Services: {serviceUuidsJson ?? "none"}");
 
-                MainThreadDispatcher.Enqueue(() =>
+                _instance?._dispatcher?.Dispatch(() =>
                 {
                     if (_instance == null) return;
 
                     if (!_instance._discoveredDevices.ContainsKey(deviceId))
                     {
-                        var device = new AppleBleDevice(deviceId, deviceName);
+                        var device = new AppleBleDevice(deviceId, deviceName, _instance._dispatcher);
                         _instance._discoveredDevices[deviceId] = device;
                         _instance._onDeviceDiscovered?.Invoke(device);
                     }

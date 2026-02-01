@@ -17,6 +17,7 @@ namespace UniBLE.Platforms.Apple
 
         private readonly Dictionary<BleUuid, AppleBleCharacteristic> _characteristics = new Dictionary<BleUuid, AppleBleCharacteristic>();
         private readonly string _deviceId;
+        private readonly IBleDispatcher _dispatcher;
         private TaskCompletionSource<IReadOnlyList<IBleCharacteristic>> _discoverCharacteristicsTcs;
 
         public BleUuid Uuid { get; }
@@ -37,10 +38,11 @@ namespace UniBLE.Platforms.Apple
             _characteristicDiscoveryCallback = OnNativeCharacteristicsDiscovered;
         }
 
-        internal AppleBleService(BleUuid uuid, string deviceId)
+        internal AppleBleService(BleUuid uuid, string deviceId, IBleDispatcher dispatcher)
         {
             Uuid = uuid;
             _deviceId = deviceId;
+            _dispatcher = dispatcher;
             var key = GetKey(deviceId, uuid.ToFullString());
             _services[key] = this;
         }
@@ -73,7 +75,7 @@ namespace UniBLE.Platforms.Apple
             _discoverCharacteristicsTcs = new TaskCompletionSource<IReadOnlyList<IBleCharacteristic>>();
             cancellationToken.Register(() => _discoverCharacteristicsTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 UniBle_DiscoverCharacteristics(_deviceId, Uuid.ToFullString(), _characteristicDiscoveryCallback);
             });
@@ -97,7 +99,10 @@ namespace UniBLE.Platforms.Apple
         [MonoPInvokeCallback(typeof(CharacteristicDiscoveryCallback))]
         private static void OnNativeCharacteristicsDiscovered(string deviceId, string serviceUuid, string characteristicsJson, string error)
         {
-            MainThreadDispatcher.Enqueue(() =>
+            var svcUuid0 = new BleUuid(serviceUuid);
+            var key0 = GetKey(deviceId, svcUuid0.ToFullString());
+            if (!_services.TryGetValue(key0, out var svc)) return;
+            svc._dispatcher.Dispatch(() =>
             {
                 var svcUuid = new BleUuid(serviceUuid);
                 var key = GetKey(deviceId, svcUuid.ToFullString());
@@ -119,7 +124,7 @@ namespace UniBLE.Platforms.Apple
                     foreach (var item in items)
                     {
                         var charUuid = new BleUuid(item.uuid);
-                        var characteristic = new AppleBleCharacteristic(charUuid, item.properties, deviceId, svcUuid);
+                        var characteristic = new AppleBleCharacteristic(charUuid, item.properties, deviceId, svcUuid, service._dispatcher);
                         service._characteristics[charUuid] = characteristic;
                         result.Add(characteristic);
                     }

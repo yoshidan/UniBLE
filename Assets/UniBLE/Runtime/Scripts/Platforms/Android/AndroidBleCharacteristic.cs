@@ -14,6 +14,7 @@ namespace UniBLE.Platforms.Android
         private readonly AndroidJavaObject _plugin;
         private readonly string _deviceId;
         private readonly BleUuid _serviceUuid;
+        private readonly IBleDispatcher _dispatcher;
         private Action<byte[]> _notifyCallback;
         private TaskCompletionSource<byte[]> _readTcs;
         private TaskCompletionSource<bool> _writeTcs;
@@ -21,13 +22,14 @@ namespace UniBLE.Platforms.Android
         public BleUuid Uuid { get; }
         public BleCharacteristicProperties Properties { get; }
 
-        internal AndroidBleCharacteristic(BleUuid uuid, int androidProperties, AndroidJavaObject plugin, string deviceId, BleUuid serviceUuid)
+        internal AndroidBleCharacteristic(BleUuid uuid, int androidProperties, AndroidJavaObject plugin, string deviceId, BleUuid serviceUuid, IBleDispatcher dispatcher)
         {
             Uuid = uuid;
             Properties = ConvertProperties(androidProperties);
             _plugin = plugin;
             _deviceId = deviceId;
             _serviceUuid = serviceUuid;
+            _dispatcher = dispatcher;
         }
 
         public Task<byte[]> ReadAsync(CancellationToken cancellationToken = default)
@@ -41,7 +43,7 @@ namespace UniBLE.Platforms.Android
             _readTcs = new TaskCompletionSource<byte[]>();
             cancellationToken.Register(() => _readTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("readCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new ReadCallback(this));
             });
@@ -61,7 +63,7 @@ namespace UniBLE.Platforms.Android
             _writeTcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => _writeTcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
                 _plugin.Call("writeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), data, withResponse, new WriteCallback(this));
             });
@@ -81,9 +83,9 @@ namespace UniBLE.Platforms.Android
             var tcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => tcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
-                _plugin.Call("subscribeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new NotifyCallback(this), new SubscribeResultCallback(tcs));
+                _plugin.Call("subscribeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new NotifyCallback(this), new SubscribeResultCallback(tcs, _dispatcher));
             });
 
             return tcs.Task;
@@ -96,9 +98,9 @@ namespace UniBLE.Platforms.Android
             var tcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(() => tcs.TrySetCanceled());
 
-            MainThreadDispatcher.Enqueue(() =>
+            _dispatcher.Dispatch(() =>
             {
-                _plugin.Call("unsubscribeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new SubscribeResultCallback(tcs));
+                _plugin.Call("unsubscribeCharacteristic", _deviceId, _serviceUuid.ToFullString(), Uuid.ToFullString(), new SubscribeResultCallback(tcs, _dispatcher));
             });
 
             return tcs.Task;
@@ -160,13 +162,13 @@ namespace UniBLE.Platforms.Android
             // Called from Java
             public void onSuccess(byte[] data)
             {
-                MainThreadDispatcher.Enqueue(() => _characteristic.OnReadSuccess(data));
+                _characteristic._dispatcher.Dispatch(() => _characteristic.OnReadSuccess(data));
             }
 
             // Called from Java
             public void onError(string error)
             {
-                MainThreadDispatcher.Enqueue(() => _characteristic.OnReadFailed(error));
+                _characteristic._dispatcher.Dispatch(() => _characteristic.OnReadFailed(error));
             }
         }
 
@@ -185,13 +187,13 @@ namespace UniBLE.Platforms.Android
             // Called from Java
             public void onSuccess()
             {
-                MainThreadDispatcher.Enqueue(() => _characteristic.OnWriteSuccess());
+                _characteristic._dispatcher.Dispatch(() => _characteristic.OnWriteSuccess());
             }
 
             // Called from Java
             public void onError(string error)
             {
-                MainThreadDispatcher.Enqueue(() => _characteristic.OnWriteFailed(error));
+                _characteristic._dispatcher.Dispatch(() => _characteristic.OnWriteFailed(error));
             }
         }
 
@@ -210,7 +212,7 @@ namespace UniBLE.Platforms.Android
             // Called from Java on the Android main thread (via mainHandler.post).
             // Invoked directly to ensure delivery even when Unity is paused (background).
             // Note: The callback may fire on a non-Unity thread. If the user needs Unity
-            // API access, they should use MainThreadDispatcher.Enqueue() in their handler.
+            // API access, they should dispatch to the main thread in their handler.
             public void onNotify(byte[] data)
             {
                 _characteristic.OnNotify(data);
@@ -223,22 +225,24 @@ namespace UniBLE.Platforms.Android
         private class SubscribeResultCallback : AndroidJavaProxy
         {
             private readonly TaskCompletionSource<bool> _tcs;
+            private readonly IBleDispatcher _dispatcher;
 
-            public SubscribeResultCallback(TaskCompletionSource<bool> tcs) : base("com.unible.SubscribeResultCallback")
+            public SubscribeResultCallback(TaskCompletionSource<bool> tcs, IBleDispatcher dispatcher) : base("com.unible.SubscribeResultCallback")
             {
                 _tcs = tcs;
+                _dispatcher = dispatcher;
             }
 
             // Called from Java
             public void onSuccess()
             {
-                MainThreadDispatcher.Enqueue(() => _tcs.TrySetResult(true));
+                _dispatcher.Dispatch(() => _tcs.TrySetResult(true));
             }
 
             // Called from Java
             public void onError(string error)
             {
-                MainThreadDispatcher.Enqueue(() => _tcs.TrySetException(new BleException(BleErrorCode.NotificationFailed, error)));
+                _dispatcher.Dispatch(() => _tcs.TrySetException(new BleException(BleErrorCode.NotificationFailed, error)));
             }
         }
     }
