@@ -45,7 +45,7 @@ graph TD
 | Android | 10 (minSdk 29) | `.aar` | armeabi-v7a, arm64-v8a, x86, x86_64 |
 | iOS | 18, 26 | `.a` + `.xcframework` | arm64 (device+sim), x86_64 (sim) |
 | macOS | 15 (Sequoia) | `.bundle` (Universal) | arm64 + x86_64 |
-| Windows | 11 | `.dll` (Uner Construction) | x64 *(Under Construction)* |
+| Windows | 11 | *(Uner Construction)* | x64 *(Under Construction)* |
 
 > **Note:** Windows support is under construction. Pre-built `.dll` is included but no build script is provided.
 
