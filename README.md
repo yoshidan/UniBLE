@@ -4,9 +4,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Unity 2022.3 LTS+](https://img.shields.io/badge/Unity-2022.3%20LTS%2B-black.svg)](https://unity.com/)
-[![Android](https://img.shields.io/badge/Android-API%2023%2B-3DDC84.svg)](#supported-platforms)
-[![iOS](https://img.shields.io/badge/iOS-12.0%2B-000000.svg)](#supported-platforms)
-[![macOS](https://img.shields.io/badge/macOS-10.13%2B-999999.svg)](#supported-platforms)
+[![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg)](#supported-platforms)
+[![iOS](https://img.shields.io/badge/iOS-18%2B-000000.svg)](#supported-platforms)
+[![macOS](https://img.shields.io/badge/macOS-15%2B-999999.svg)](#supported-platforms)
 
 <img src="./UniBlePlugin~/key_visual.png" />
 
