@@ -17,6 +17,7 @@ static const int PROP_INDICATE = 32;
 
 @property (nonatomic, strong) CBCentralManager* centralManager;
 @property (nonatomic, strong) NSMutableDictionary<NSString*, CBPeripheral*>* peripherals;
+@property (nonatomic, strong) NSMutableDictionary<NSString*, CBPeripheral*>* discoveredPeripherals;
 @property (nonatomic, strong) NSMutableDictionary<NSString*, NSMutableDictionary*>* peripheralCallbacks;
 @property (nonatomic, assign) StateChangedCallback stateChangedCallback;
 @property (nonatomic, assign) DeviceDiscoveredCallback deviceDiscoveredCallback;
@@ -60,6 +61,7 @@ static UniBleManager* g_sharedInstance = nil;
     self = [super init];
     if (self) {
         _peripherals = [[NSMutableDictionary alloc] init];
+        _discoveredPeripherals = [[NSMutableDictionary alloc] init];
         _peripheralCallbacks = [[NSMutableDictionary alloc] init];
         _syncQueue = dispatch_queue_create("com.unible.sync", DISPATCH_QUEUE_SERIAL);
     }
@@ -94,8 +96,8 @@ static UniBleManager* g_sharedInstance = nil;
     // Stop any existing scan first
     [self.centralManager stopScan];
 
-    // Clear previously discovered peripherals so they can be discovered again
-    [self.peripherals removeAllObjects];
+    // Clear scan-discovered peripherals only (keep connected/known references)
+    [self.discoveredPeripherals removeAllObjects];
 
     UNIBLE_LOG(@"Actually starting scan now");
     [self.centralManager scanForPeripheralsWithServices:serviceUuids options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @NO}];
@@ -103,6 +105,19 @@ static UniBleManager* g_sharedInstance = nil;
 
 - (void)stopScan {
     [self.centralManager stopScan];
+
+    // Remove peripherals that were not rediscovered and are not connected.
+    NSArray<NSString*>* knownIds = [self.peripherals allKeys];
+    for (NSString* deviceId in knownIds) {
+        if (self.discoveredPeripherals[deviceId]) {
+            continue;
+        }
+        CBPeripheral* peripheral = self.peripherals[deviceId];
+        if (peripheral && peripheral.state == CBPeripheralStateConnected) {
+            continue;
+        }
+        [self.peripherals removeObjectForKey:deviceId];
+    }
 }
 
 - (void)connectPeripheral:(NSString*)deviceId callback:(ConnectionCallback)callback {
@@ -444,7 +459,10 @@ static UniBleManager* g_sharedInstance = nil;
     if (!self.peripherals[deviceId]) {
         self.peripherals[deviceId] = peripheral;
         peripheral.delegate = self;
+    }
 
+    if (!self.discoveredPeripherals[deviceId]) {
+        self.discoveredPeripherals[deviceId] = peripheral;
         if (self.deviceDiscoveredCallback) {
             // Call C# callback directly - C# copies string data immediately via Marshal.PtrToStringAnsi,
             // and handles thread safety via MainThreadDispatcher.Enqueue()
