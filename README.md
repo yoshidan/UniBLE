@@ -8,6 +8,8 @@
 [![iOS](https://img.shields.io/badge/iOS-12.0%2B-000000.svg)](#supported-platforms)
 [![macOS](https://img.shields.io/badge/macOS-10.13%2B-999999.svg)](#supported-platforms)
 
+<img src="./UniBlePlugin~/key_visual.png" />
+
 UniBLE provides a unified async/await BLE (Bluetooth Low Energy) API across Android, iOS, macOS, and Windows, backed by native plugins for each platform.
 
 ```mermaid
