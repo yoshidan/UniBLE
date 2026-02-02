@@ -15,7 +15,7 @@ namespace UniBLE.Platforms.Apple
     {
         private static AppleBleAdapter _instance;
         private readonly IBleDispatcher _dispatcher;
-        private readonly Dictionary<string, AppleBleDevice> _discoveredDevices = new Dictionary<string, AppleBleDevice>();
+        private readonly Dictionary<string, AppleBleDevice> _deviceCache = new Dictionary<string, AppleBleDevice>();
         private Action<IBleDevice> _onDeviceDiscovered;
         private BleAdapterState _state = BleAdapterState.Unknown;
         private bool _isScanning;
@@ -169,14 +169,14 @@ namespace UniBLE.Platforms.Apple
 
         public Task<IBleDevice> GetDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
         {
-            if (_discoveredDevices.TryGetValue(deviceId, out var device))
+            if (_deviceCache.TryGetValue(deviceId, out var device))
             {
                 return Task.FromResult<IBleDevice>(device);
             }
 
             // Create a new device for known device connection
             var newDevice = new AppleBleDevice(deviceId, "Unknown", _dispatcher);
-            _discoveredDevices[deviceId] = newDevice;
+            _deviceCache[deviceId] = newDevice;
             return Task.FromResult<IBleDevice>(newDevice);
         }
 
@@ -227,10 +227,10 @@ namespace UniBLE.Platforms.Apple
                 {
                     if (_instance == null) return;
 
-                    if (!_instance._discoveredDevices.ContainsKey(deviceId))
+                    if (!_instance._deviceCache.ContainsKey(deviceId))
                     {
                         var device = new AppleBleDevice(deviceId, deviceName, _instance._dispatcher);
-                        _instance._discoveredDevices[deviceId] = device;
+                        _instance._deviceCache[deviceId] = device;
                         _instance._onDeviceDiscovered?.Invoke(device);
                     }
                 });

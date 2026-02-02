@@ -15,7 +15,7 @@ namespace UniBLE.Platforms.Android
     {
         private readonly AndroidJavaObject _plugin;
         private readonly IBleDispatcher _dispatcher;
-        private readonly Dictionary<string, AndroidBleDevice> _discoveredDevices = new Dictionary<string, AndroidBleDevice>();
+        private readonly Dictionary<string, AndroidBleDevice> _deviceCache = new Dictionary<string, AndroidBleDevice>();
         private Action<IBleDevice> _onDeviceDiscovered;
         private BleAdapterState _state = BleAdapterState.Unknown;
         private bool _isScanning;
@@ -171,10 +171,10 @@ namespace UniBLE.Platforms.Android
                     name = androidDevice.Call<string>("getName") ?? "";
                 }
 
-                if (!_discoveredDevices.TryGetValue(deviceId, out var device))
+                if (!_deviceCache.TryGetValue(deviceId, out var device))
                 {
                     device = new AndroidBleDevice(deviceId, name, _plugin, _dispatcher);
-                    _discoveredDevices[deviceId] = device;
+                    _deviceCache[deviceId] = device;
                 }
                 tcs.TrySetResult(device);
             });
@@ -184,10 +184,10 @@ namespace UniBLE.Platforms.Android
 
         internal void OnDeviceDiscovered(string deviceId, string deviceName)
         {
-            if (!_discoveredDevices.TryGetValue(deviceId, out var device))
+            if (!_deviceCache.TryGetValue(deviceId, out var device))
             {
                 device = new AndroidBleDevice(deviceId, deviceName, _plugin, _dispatcher);
-                _discoveredDevices[deviceId] = device;
+                _deviceCache[deviceId] = device;
                 _onDeviceDiscovered?.Invoke(device);
             }
         }
@@ -209,7 +209,7 @@ namespace UniBLE.Platforms.Android
         // Bug 2: handle post-connection disconnect notifications from Java
         internal void OnDeviceDisconnected(string deviceId, string error)
         {
-            if (_discoveredDevices.TryGetValue(deviceId, out var device))
+            if (_deviceCache.TryGetValue(deviceId, out var device))
             {
                 device.OnDisconnected(error);
             }
