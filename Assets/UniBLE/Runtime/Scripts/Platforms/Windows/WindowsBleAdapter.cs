@@ -38,7 +38,7 @@ namespace UniBLE.Platforms.Windows
             throw new NotImplementedException();
         }
 
-        public Task<IBleDevice> ConnectToKnownDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
+        public Task<IBleDevice> GetDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }

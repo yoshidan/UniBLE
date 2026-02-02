@@ -47,10 +47,10 @@ namespace UniBLE
         Task StopScanAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Connect to a known device
+        /// Get a device by ID without scanning
         /// </summary>
         /// <param name="deviceId">Device ID</param>
-        Task<IBleDevice> ConnectToKnownDeviceAsync(string deviceId, CancellationToken cancellationToken = default);
+        Task<IBleDevice> GetDeviceAsync(string deviceId, CancellationToken cancellationToken = default);
     }
 
     /// <summary>

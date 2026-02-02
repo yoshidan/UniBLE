@@ -123,7 +123,6 @@ namespace UniBLE.Platforms.Apple
             if (_isScanning) return Task.CompletedTask;
 
             _onDeviceDiscovered = onDeviceDiscovered;
-            _discoveredDevices.Clear();
             _isScanning = true;
 
             // Sync debug flag to native side in case it changed
@@ -168,7 +167,7 @@ namespace UniBLE.Platforms.Apple
             return Task.CompletedTask;
         }
 
-        public Task<IBleDevice> ConnectToKnownDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
+        public Task<IBleDevice> GetDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
         {
             if (_discoveredDevices.TryGetValue(deviceId, out var device))
             {

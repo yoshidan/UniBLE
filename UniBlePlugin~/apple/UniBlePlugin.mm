@@ -130,6 +130,17 @@ static UniBleManager* g_sharedInstance = nil;
 - (void)connectPeripheral:(NSString*)deviceId callback:(ConnectionCallback)callback {
     CBPeripheral* peripheral = self.peripherals[deviceId];
     if (!peripheral) {
+        NSUUID* uuid = [[NSUUID alloc] initWithUUIDString:deviceId];
+        if (uuid) {
+            NSArray<CBPeripheral*>* retrieved = [self.centralManager retrievePeripheralsWithIdentifiers:@[uuid]];
+            if (retrieved.count > 0) {
+                peripheral = retrieved.firstObject;
+                self.peripherals[deviceId] = peripheral;
+                peripheral.delegate = self;
+            }
+        }
+    }
+    if (!peripheral) {
         if (callback) {
             callback([deviceId UTF8String], false, "Peripheral not found");
         }

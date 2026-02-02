@@ -32,7 +32,7 @@ graph TD
 - **Service & Characteristic Discovery**
 - **Read / Write / Notify / Subscribe** for characteristics
 - **Runtime Permission** handling (Android)
-- **Known Device** reconnection by device ID
+- **Known Device** reconnection by device ID (iOS: OS-known devices only)
 - **Advertisement Data & RSSI** retrieval
 - **16/32/128-bit UUID** support with implicit string conversion
 
@@ -110,6 +110,17 @@ public class BleExample : MonoBehaviour
     }
 }
 ```
+
+### Connect to a Known Device (No Scan)
+
+```csharp
+// Use a previously saved device ID (e.g., from a past scan)
+var device = await BleManager.Adapter.GetDeviceAsync(deviceId);
+await device.ConnectAsync();
+```
+
+**iOS note:** `GetDeviceAsync` can only connect if the OS already knows the device UUID
+from a previous discovery/connection. If iOS does not recognize the UUID, the connection will fail.
 
 ### Reading & Writing Characteristics
 
