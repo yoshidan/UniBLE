@@ -28,7 +28,7 @@ namespace UniBLE.Platforms.Android
         internal AndroidBleDevice(string id, string name, AndroidJavaObject plugin, IBleDispatcher dispatcher)
         {
             Id = id;
-            Name = name ?? "Unknown";
+            Name = name ?? "";
             _plugin = plugin;
             _dispatcher = dispatcher;
         }
