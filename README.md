@@ -64,7 +64,7 @@ Add the following to your `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "com.github.yoshidan.unible": "https://github.com/yoshidan/UniBLE.git?path=Assets/UniBLE"
+    "com.github.yoshidan.unible": "https://github.com/yoshidan/UniBLE.git?path=Assets/UniBLE#v0.1.1"
   }
 }
 ```
