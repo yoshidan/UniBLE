@@ -51,7 +51,7 @@ graph TD
 
 ## Requirements
 
-- **Unity 2022.3 LTS** or later
+- **Unity 6000.3.5** or later
 - **Android**: Android SDK, Java JDK 17+
 - **iOS/macOS**: Xcode command line tools (clang++, xcodebuild, lipo)
 
