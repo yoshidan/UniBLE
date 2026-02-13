@@ -58,7 +58,7 @@ namespace UniBLE.Platforms.Apple
         internal AppleBleDevice(string id, string name, IBleDispatcher dispatcher)
         {
             Id = id;
-            Name = name ?? "Unknown";
+            Name = name ?? "";
             _dispatcher = dispatcher;
             _devices[id] = this;
         }

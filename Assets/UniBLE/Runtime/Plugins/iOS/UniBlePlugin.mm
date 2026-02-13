@@ -479,7 +479,7 @@ static UniBleManager* g_sharedInstance = nil;
             // and handles thread safety via MainThreadDispatcher.Enqueue()
             self.deviceDiscoveredCallback(
                 [deviceId UTF8String],
-                [(peripheral.name ?: @"Unknown") UTF8String],
+                [(peripheral.name ?: @"") UTF8String],
                 serviceUuidsJson ? [serviceUuidsJson UTF8String] : NULL
             );
         }
